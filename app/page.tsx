@@ -23,15 +23,12 @@ export default function NexusSOAP() {
   const transcriptRef = useRef<any[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
-  // AUTO-SCROLL LOGIC
   const scrollToBottom = () => {
     transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   useEffect(() => {
-    if (liveTranscript.length > 0) {
-      scrollToBottom();
-    }
+    if (liveTranscript.length > 0) scrollToBottom();
   }, [liveTranscript]);
 
   const startRecognition = () => {
@@ -52,14 +49,31 @@ export default function NexusSOAP() {
             const text = event.results[i][0].transcript;
             const lowerText = text.toLowerCase();
             
-            const introKeywords = ["my name is", "mera naam", "maaza naav", "naam hai", "naav aahe", "i am", "mee"];
-            const isIntroduction = introKeywords.some(k => lowerText.includes(k));
-            const doctorKeywords = ["crocin", "paracetamol", "medicine", "dawa", "goli", "le lo", "take this", "report", "test", "checkup", "khaya tha", "hua tha", "kab se", "kya", "kaise"];
-            const isDoctorSignal = CLINICAL_DICTIONARY.ROLES.DOCTOR.some(s => lowerText.includes(s.toLowerCase())) || doctorKeywords.some(k => lowerText.includes(k));
+            // ELITE DIARIZATION ENGINE (ROLE INFERENCE)
+            const patientKeywords = ["my name is", "mera naam", "maaza naav", "naam hai", "i feel", "pain in my", "i am having", "mala", "mujhe"];
             
+            const doctorActionKeywords = [
+              "prescribing", "take this", "medicine", "dawa", "goli", "injection", "treatment", "follow up",
+              "examine", "check", "bp is", "temperature is", "report", "test", "diagnosis", "rest", "hydration",
+              "theek hai", "okay", "let me see", "open your mouth", "breathe"
+            ];
+
+            const isPatientSignal = patientKeywords.some(k => lowerText.includes(k));
+            
+            const isDoctorSignal = doctorActionKeywords.some(k => lowerText.includes(k)) || 
+                                   CLINICAL_DICTIONARY.MEDICINES.ANTIBIOTICS.some(m => lowerText.includes(m.toLowerCase())) ||
+                                   CLINICAL_DICTIONARY.MEDICINES.PAINKILLERS.some(m => lowerText.includes(m.toLowerCase()));
+
             let role: 'Doctor' | 'Patient' = 'Patient';
-            if (isIntroduction) role = 'Patient';
-            else if (isDoctorSignal) role = 'Doctor';
+            
+            if (isDoctorSignal && !isPatientSignal) {
+              role = 'Doctor';
+            } else if (isPatientSignal) {
+              role = 'Patient';
+            } else {
+              // Default to Doctor if clinical terms are found, otherwise fallback to last role or Patient
+              role = (transcriptRef.current.length > 0 && transcriptRef.current[transcriptRef.current.length - 1].role === 'Doctor') ? 'Patient' : 'Doctor';
+            }
             
             const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
             setLiveTranscript(prev => [...prev, newLine]);
@@ -176,7 +190,6 @@ export default function NexusSOAP() {
           <button onClick={toggleRecording} className={`px-6 py-2.5 rounded-xl font-black text-[10px] tracking-widest uppercase transition-all ${isRecording ? 'bg-red-500/20 text-red-500 border border-red-500/30' : 'bg-emerald-500 text-black hover:bg-emerald-400'}`}>{isRecording ? 'Stop' : 'Start Ingestion'}</button>
         </div>
       </nav>
-
       <div className="max-w-[1700px] mx-auto grid grid-cols-12 gap-8 pt-32 px-8 pb-20">
         <div className="col-span-12 lg:col-span-8 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
