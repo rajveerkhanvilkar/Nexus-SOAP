@@ -22,6 +22,7 @@ export default function NexusSOAP() {
   const isStartingRef = useRef(false);
   const transcriptRef = useRef<any[]>([]);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
 
   const scrollToBottom = () => {
     const container = scrollContainerRef.current;
@@ -37,23 +38,29 @@ export default function NexusSOAP() {
     if (liveTranscript.length > 0) scrollToBottom();
   }, [liveTranscript]);
 
-  // DEEP-CLEANUP START LOGIC
+  // MOBILE-FIRST SPEECH ENGINE
   const startRecognition = () => {
     if (isStartingRef.current) return;
     
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+    // Explicit Mobile Prefixing
+    const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech Recognition not supported on this mobile browser. Please use Chrome or Safari.");
+      return;
+    }
 
     try {
       const recognition = new SpeechRecognition();
       recognitionRef.current = recognition;
+      
+      // Mobile Hardware Optimization
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-IN';
 
       recognition.onstart = () => {
         isStartingRef.current = false;
-        console.log("Engine: FRESH SESSION ACTIVE");
+        console.log("MOBILE ENGINE: ACTIVE");
       };
 
       recognition.onresult = (event: any) => {
@@ -80,15 +87,22 @@ export default function NexusSOAP() {
       };
 
       recognition.onend = () => {
+        // MOBILE PERSISTENCE HACK: Auto-restart if browser tries to sleep
         if (isRecordingRef.current) {
-          setTimeout(() => { if (isRecordingRef.current) startRecognition(); }, 300);
+          setTimeout(() => { 
+            if (isRecordingRef.current) {
+              try { recognition.start(); } catch(e) {}
+            }
+          }, 250);
         }
       };
 
       recognition.onerror = (event: any) => {
-        console.warn("Recognition Error:", event.error);
+        console.warn("Mobile Engine Error:", event.error);
         isStartingRef.current = false;
+        // Handle Mobile Permission Denial
         if (event.error === 'not-allowed') {
+          alert("Microphone permission denied. Please enable it in your phone settings.");
           setIsRecording(false);
           isRecordingRef.current = false;
         }
@@ -105,9 +119,8 @@ export default function NexusSOAP() {
     if (isRecording) {
       setIsRecording(false);
       isRecordingRef.current = false;
-      isStartingRef.current = false; // Reset start flag
+      isStartingRef.current = false;
       
-      // FORCE-ABORT PREVIOUS ENGINE
       if (recognitionRef.current) {
         recognitionRef.current.abort();
         recognitionRef.current = null;
@@ -124,18 +137,25 @@ export default function NexusSOAP() {
         setTimeout(() => { setIsProcessing(false); setActiveAgent("Done"); }, 500);
       } catch (err) { setIsProcessing(false); }
     } else {
-      // FRESH START INITIALIZATION
       setIsRecording(true);
       isRecordingRef.current = true;
-      isStartingRef.current = false; // Ensure flag is clear for new handshake
+      isStartingRef.current = false;
       transcriptRef.current = [];
       setLiveTranscript([]);
       setAiResult(null);
 
+      // MOBILE AUDIO RESUME PROTOCOL
       const updateVolume = async () => {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          audioContextRef.current = audioContext;
+          
+          // Force wake on mobile
+          if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+          }
+
           const analyser = audioContext.createAnalyser();
           const source = audioContext.createMediaStreamSource(stream);
           source.connect(analyser);
@@ -147,12 +167,13 @@ export default function NexusSOAP() {
             requestAnimationFrame(checkVolume);
           };
           checkVolume();
-        } catch (err) {}
+        } catch (err) {
+          console.error("Mobile Mic Error:", err);
+        }
       };
       
       updateVolume();
-      // Hardware breathing room before start
-      setTimeout(() => startRecognition(), 100);
+      setTimeout(() => startRecognition(), 150);
     }
   };
 
@@ -204,12 +225,12 @@ export default function NexusSOAP() {
       <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/5 py-4 px-8 flex items-center justify-between">
         <div className="flex items-center gap-3"><Activity className="w-5 h-5 text-emerald-400" /><h1 className="text-sm font-black tracking-tighter text-white">NEXUS<span className="text-emerald-400">SOAP</span></h1></div>
         <div className="flex items-center gap-4">
-          <input type="text" placeholder="ENTER PATIENT NAME" value={patientName} onChange={(e) => setPatientName(e.target.value.toUpperCase())} className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-[10px] font-black tracking-widest text-emerald-400 focus:outline-none w-64" />
+          <input type="text" placeholder="ENTER PATIENT NAME" value={patientName} onChange={(e) => setPatientName(e.target.value.toUpperCase())} className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-[10px] font-black tracking-widest text-emerald-400 focus:outline-none w-32 md:w-64" />
           <button onClick={exportPDF} className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all group"><Download size={18} className="text-white/40 group-hover:text-emerald-400" /></button>
-          <button onClick={toggleRecording} className={`px-6 py-2.5 rounded-xl font-black text-[10px] tracking-widest uppercase transition-all ${isRecording ? 'bg-red-500/20 text-red-500 border border-red-500/30' : 'bg-emerald-500 text-black hover:bg-emerald-400'}`}>{isRecording ? 'Stop' : 'Start Ingestion'}</button>
+          <button onClick={toggleRecording} className={`px-4 md:px-6 py-2.5 rounded-xl font-black text-[10px] tracking-widest uppercase transition-all ${isRecording ? 'bg-red-500/20 text-red-500 border border-red-500/30' : 'bg-emerald-500 text-black hover:bg-emerald-400'}`}>{isRecording ? 'Stop' : 'Start Ingestion'}</button>
         </div>
       </nav>
-      <div className="max-w-[1700px] mx-auto grid grid-cols-12 gap-8 pt-32 px-8 pb-20">
+      <div className="max-w-[1700px] mx-auto grid grid-cols-12 gap-8 pt-32 px-4 md:px-8 pb-20">
         <div className="col-span-12 lg:col-span-8 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <SOAPCard letter="S" title="SUBJECTIVE (HISTORY)" items={isProcessing ? [{text: "Synthesizing...", confidence: 100}] : (aiResult?.soap?.subjective || [])} variant="green" />
@@ -220,11 +241,6 @@ export default function NexusSOAP() {
           <div className="glass rounded-[2rem] p-10 border-white/5 flex flex-col items-center justify-center min-h-[160px]">
             <div className="absolute top-6 left-8 flex items-center gap-3 opacity-40"><div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" /><span className="text-[10px] font-black tracking-widest uppercase">Ambient Stream</span></div>
             <PulseVisualizer isProcessing={isProcessing || isRecording} volume={volume} />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div className="glass rounded-[1.5rem] p-6 border-white/5 space-y-4"><span className="text-[10px] font-black tracking-widest uppercase text-white/30">X-FACTOR DDP</span><div className="h-12 bg-emerald-500/10 rounded border border-emerald-500/10 animate-pulse" /></div>
-            <div className="glass rounded-[1.5rem] p-6 border-white/5 space-y-4"><span className="text-[10px] font-black tracking-widest uppercase text-white/30">AUDITOR ALERT</span><p className="text-[10px] text-white/50">Analyzing...</p></div>
-            <div className="glass rounded-[1.5rem] p-6 border-white/5 space-y-4"><span className="text-[10px] font-black tracking-widest uppercase text-white/30">BILLING</span><div className="flex gap-2"><div className="w-8 h-4 bg-white/5 rounded" /><div className="w-8 h-4 bg-white/5 rounded" /></div></div>
           </div>
         </div>
         <div className="col-span-12 lg:col-span-4 h-[calc(100vh-200px)]">
