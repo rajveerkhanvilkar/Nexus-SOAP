@@ -17,7 +17,7 @@ export default function NexusSOAP() {
   const [liveTranscript, setLiveTranscript] = useState<{ id: string; text: string; role: 'Doctor' | 'Patient' | 'User'; timestamp: string }[]>([]);
   const [volume, setVolume] = useState<number>(0);
   const [aiResult, setAiResult] = useState<any>(null);
-  
+
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<any[]>([]);
 
@@ -38,7 +38,7 @@ export default function NexusSOAP() {
           body: JSON.stringify({ transcript: transcriptText })
         });
         const data = await response.json();
-        
+
         if (data.patient_name && !patientName) {
           setPatientName(data.patient_name.toUpperCase());
         }
@@ -74,10 +74,10 @@ export default function NexusSOAP() {
             requestAnimationFrame(checkVolume);
           };
           checkVolume();
-        } catch (err) {}
+        } catch (err) { }
       };
       updateVolume();
-      
+
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (!SpeechRecognition) return;
 
@@ -91,16 +91,16 @@ export default function NexusSOAP() {
           if (event.results[i].isFinal) {
             const text = event.results[i][0].transcript;
             const lowerText = text.toLowerCase();
-            
+
             const introKeywords = ["my name is", "mera naam", "maaza naav", "naam hai", "naav aahe", "i am", "mee"];
             const isIntroduction = introKeywords.some(k => lowerText.includes(k));
             const doctorKeywords = ["crocin", "paracetamol", "medicine", "dawa", "goli", "le lo", "take this", "report", "test", "checkup", "khaya tha", "hua tha", "kab se", "kya", "kaise"];
             const isDoctorSignal = CLINICAL_DICTIONARY.ROLES.DOCTOR.some(s => lowerText.includes(s.toLowerCase())) || doctorKeywords.some(k => lowerText.includes(k));
-            
+
             let role: 'Doctor' | 'Patient' = 'Patient';
             if (isIntroduction) role = 'Patient';
             else if (isDoctorSignal) role = 'Doctor';
-            
+
             const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
             setLiveTranscript(prev => [...prev, newLine]);
             transcriptRef.current.push(newLine);
@@ -116,7 +116,7 @@ export default function NexusSOAP() {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    
+
     // FONT SETUP
     doc.setFont("helvetica", "bold");
 
@@ -124,12 +124,12 @@ export default function NexusSOAP() {
     // Emerald Header Block
     doc.setFillColor(16, 185, 129); // #10b981
     doc.rect(0, 0, pageWidth, 55, 'F');
-    
+
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(32);
     doc.text("NEXUS", 25, 30);
     doc.text("SOAP", 100, 30);
-    
+
     doc.setFontSize(12);
     doc.setFont("helvetica", "normal");
     doc.text("AMBIENT CLINICAL INTELLIGENCE OS", 25, 42);
@@ -143,10 +143,10 @@ export default function NexusSOAP() {
 
     let yPos = 80;
     const sections = [
-      { t: "S - SUBJECTIVE (CLINICAL HISTORY)", d: aiResult.soap.subjective },
-      { t: "O - OBJECTIVE (CLINICAL FINDINGS)", d: aiResult.soap.objective },
-      { t: "A - ASSESSMENT (DIAGNOSTIC SUMMARY)", d: aiResult.soap.assessment },
-      { t: "P - PLAN (TREATMENT PROTOCOL)", d: aiResult.soap.plan }
+      { t: "S - SUBJECTIVE (HISTORY)", d: aiResult.soap.subjective },
+      { t: "O - OBJECTIVE (FINDINGS)", d: aiResult.soap.objective },
+      { t: "A - ASSESSMENT (SUMMARY)", d: aiResult.soap.assessment },
+      { t: "P - PLAN (PROTOCOL)", d: aiResult.soap.plan }
     ];
 
     sections.forEach(s => {
@@ -155,7 +155,7 @@ export default function NexusSOAP() {
       doc.rect(20, yPos - 6, pageWidth - 40, 10, 'F');
       doc.setFillColor(16, 185, 129);
       doc.rect(20, yPos - 6, 2, 10, 'F');
-      
+
       doc.setTextColor(16, 185, 129);
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
@@ -174,15 +174,15 @@ export default function NexusSOAP() {
           const lines = doc.splitTextToSize(item.text, pageWidth - 50);
           doc.text(lines, 25, yPos);
           yPos += (lines.length * 5) + 3;
-          
+
           doc.setFontSize(7);
           doc.setTextColor(180, 180, 180);
           doc.text(`AI Confidence: ${item.confidence || 95}% | Validated via Audit Trail`, 28, yPos);
           yPos += 8;
-          
+
           doc.setFontSize(9);
           doc.setTextColor(80, 80, 80);
-          
+
           if (yPos > pageHeight - 20) {
             doc.addPage();
             yPos = 30;
@@ -196,12 +196,12 @@ export default function NexusSOAP() {
     doc.addPage();
     doc.setFillColor(60, 60, 60);
     doc.rect(0, 0, pageWidth, 45, 'F');
-    
+
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
     doc.setFont("helvetica", "bold");
     doc.text("APPENDIX A: RAW CLINICAL AUDIT TRAIL", 20, 25);
-    
+
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.text("UNEDITED CONVERSATIONAL LOGS FOR COMPLIANCE VERIFICATION", 20, 35);
@@ -213,11 +213,11 @@ export default function NexusSOAP() {
         doc.addPage();
         auditY = 30;
       }
-      
+
       doc.setTextColor(120, 120, 120);
       doc.setFont("helvetica", "bold");
       doc.text(`${line.role.toUpperCase()} [${line.timestamp}]:`, 20, auditY);
-      
+
       doc.setTextColor(100, 100, 100);
       doc.setFont("helvetica", "normal");
       const transcriptLines = doc.splitTextToSize(line.text, pageWidth - 50);
@@ -237,9 +237,9 @@ export default function NexusSOAP() {
         </div>
 
         <div className="flex items-center gap-4">
-          <input 
-            type="text" 
-            placeholder="ENTER PATIENT NAME" 
+          <input
+            type="text"
+            placeholder="ENTER PATIENT NAME"
             value={patientName}
             onChange={(e) => setPatientName(e.target.value.toUpperCase())}
             className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-[10px] font-black tracking-widest text-emerald-400 focus:outline-none w-64"
@@ -256,10 +256,10 @@ export default function NexusSOAP() {
       <div className="max-w-[1700px] mx-auto grid grid-cols-12 gap-8 pt-32 px-8 pb-20">
         <div className="col-span-12 lg:col-span-8 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <SOAPCard letter="S" title="S - SUBJECTIVE (CLINICAL HISTORY)" items={isProcessing ? [{text: "Synthesizing...", confidence: 100}] : (aiResult?.soap?.subjective || [])} variant="green" />
-            <SOAPCard letter="O" title="O - OBJECTIVE (CLINICAL FINDINGS)" items={isProcessing ? [{text: "Normalizing...", confidence: 100}] : (aiResult?.soap?.objective || [])} variant="gold" />
-            <SOAPCard letter="A" title="A - ASSESSMENT (DIAGNOSTIC SUMMARY)" items={isProcessing ? [{text: "Calculating...", confidence: 100}] : (aiResult?.soap?.assessment || [])} variant="green" />
-            <SOAPCard letter="P" title="P - PLAN (TREATMENT PROTOCOL)" items={isProcessing ? [{text: "Formulating...", confidence: 100}] : (aiResult?.soap?.plan || [])} variant="gold" />
+            <SOAPCard letter="S" title="S - SUBJECTIVE (CLINICAL HISTORY)" items={isProcessing ? [{ text: "Synthesizing...", confidence: 100 }] : (aiResult?.soap?.subjective || [])} variant="green" />
+            <SOAPCard letter="O" title="O - OBJECTIVE (CLINICAL FINDINGS)" items={isProcessing ? [{ text: "Normalizing...", confidence: 100 }] : (aiResult?.soap?.objective || [])} variant="gold" />
+            <SOAPCard letter="A" title="A - ASSESSMENT (DIAGNOSTIC SUMMARY)" items={isProcessing ? [{ text: "Calculating...", confidence: 100 }] : (aiResult?.soap?.assessment || [])} variant="green" />
+            <SOAPCard letter="P" title="P - PLAN (TREATMENT PROTOCOL)" items={isProcessing ? [{ text: "Formulating...", confidence: 100 }] : (aiResult?.soap?.plan || [])} variant="gold" />
           </div>
 
           <div className="glass rounded-[2rem] p-10 border-white/5 flex flex-col items-center justify-center min-h-[160px]">
