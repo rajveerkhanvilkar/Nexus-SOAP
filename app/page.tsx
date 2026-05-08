@@ -328,21 +328,25 @@ export default function NexusSOAP() {
             {/* CLINICAL INTELLIGENCE GRID (ENTERPRISE GRADE) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <SOAPCard 
+                letter="S"
                 title="S - SUBJECTIVE (HISTORY)" 
                 items={isProcessing ? [{text: "Synthesizing Clinical History...", confidence: 100}] : (aiResult?.soap?.subjective || [])}
                 variant="green"
               />
               <SOAPCard 
+                letter="O"
                 title="O - OBJECTIVE (FINDINGS)" 
                 items={isProcessing ? [{text: "Normalizing Vitals & Metrics...", confidence: 100}] : (aiResult?.soap?.objective || [])}
                 variant="gold"
               />
               <SOAPCard 
+                letter="A"
                 title="A - ASSESSMENT (ANALYSIS)" 
                 items={isProcessing ? [{text: "Calculating Diagnostic Probabilities...", confidence: 100}] : (aiResult?.soap?.assessment || [])}
                 variant="green"
               />
               <SOAPCard 
+                letter="P"
                 title="P - PLAN (PROTOCOL)" 
                 items={isProcessing ? [{text: "Constructing Treatment Protocol...", confidence: 100}] : (aiResult?.soap?.plan || [])}
                 variant="gold"
