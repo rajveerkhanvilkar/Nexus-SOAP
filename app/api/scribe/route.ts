@@ -11,73 +11,84 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // 1. HYPER-STRICT AI PROMPT
+    // HYPER-STRICT CLINICAL INTELLIGENCE PROMPT
     const prompt = `
-      ROLE: Elite Medical Scribe.
-      TASK: Extract Patient Name and professional English SOAP notes.
-      TRANSCRIPT: ${transcript}
+      ROLE: World-Class Clinical Scribe & Medical Analyst.
+      TASK: Extract accurate, professional, and non-repetitive SOAP notes from the provided transcript.
       
-      STRUCTURE:
+      RULES:
+      1. S - SUBJECTIVE: Include ONLY patient's reported symptoms, history, and complaints. Normalize Hinglish to English.
+      2. O - OBJECTIVE: Include ONLY clinical findings (Vitals, physical exam, reports, doctor's observations).
+      3. A - ASSESSMENT: Provide professional clinical diagnosis or summary. Link findings to the diagnosis.
+      4. P - PLAN: Provide treatment, medications, and follow-up instructions.
+      5. NO REPETITION: Do not repeat info across sections. Keep each point distinct.
+      6. ABSOLUTE ACCURACY: Do not hallucinate. If a medication or disease isn't in the transcript, don't write it.
+      7. REFERENCE DICTIONARY: Use categories like ${Object.keys(CLINICAL_DICTIONARY.MEDICINES).join(', ')} for normalization.
+
+      TRANSCRIPT: 
+      ${transcript}
+      
+      OUTPUT FORMAT (JSON):
       {
-        "patient_name": "NAME_HERE",
-        "soap": { "subjective": [...], "objective": [...], "assessment": [...], "plan": [...] }
+        "patient_name": "UPPERCASE_NAME",
+        "soap": {
+          "subjective": [{"text": "...", "confidence": 100}],
+          "objective": [{"text": "...", "confidence": 100}],
+          "assessment": [{"text": "...", "confidence": 100}],
+          "plan": [{"text": "...", "confidence": 100}]
+        }
       }
     `;
 
     let finalResult: any = { 
       patient_name: null,
       soap: { subjective: [], objective: [], assessment: [], plan: [] },
-      intelligence: { ai_mode: "Local Heuristic" }
+      intelligence: { mode: "Military Heuristic" }
     };
 
     try {
       const result = await Promise.race([
         model.generateContent(prompt),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 9000))
       ]) as any;
 
-      const response = await result.response;
-      const responseText = response.text();
+      const responseText = await result.response.text();
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        finalResult.soap = parsed.soap || parsed;
-        finalResult.patient_name = parsed.patient_name || null;
-        finalResult.intelligence.ai_mode = "Gemini Semantic";
+        finalResult.soap = parsed.soap;
+        finalResult.patient_name = parsed.patient_name;
+        finalResult.intelligence.mode = "Gemini Clinical v5.0";
       }
     } catch (e) {
-      console.warn("AI Engine slow, using Steel-Core Fallback.");
+      console.warn("AI Engine slow, activating Clinical Heuristics.");
     }
 
-    // 2. STEEL-CORE FALLBACK (v4.8 - IDENTITY & CLINICAL)
-    const lines = transcript.split('\n');
-    
-    // IDENTITY SCANNER (Regex)
-    if (!finalResult.patient_name) {
-      const nameRegex = /(?:my name is|mera naam|maaza naav|i am|mee)\s+([a-zA-Z]+)/i;
-      for (const line of lines) {
-        const match = line.match(nameRegex);
-        if (match) {
-          finalResult.patient_name = match[1].trim().toUpperCase();
-          break;
-        }
-      }
-    }
-
-    // CLINICAL SCANNER (Semantic Fallback)
+    // STEEL-CORE RECOVERY MODE (USING EXPANDED DICTIONARY)
     const lowerTranscript = transcript.toLowerCase();
-    const add = (section: string, text: string) => finalResult.soap[section].push({ text, confidence: 85 });
+    const add = (section: string, text: string) => {
+      if (!finalResult.soap[section].some((s: any) => s.text === text)) {
+        finalResult.soap[section].push({ text, confidence: 90 });
+      }
+    };
 
+    // Auto-Extraction Logic (Fallback)
     if (finalResult.soap.subjective.length === 0) {
-      if (lowerTranscript.includes("khasi") || lowerTranscript.includes("cough")) add("subjective", "Patient reports persistent cough symptoms.");
-      if (lowerTranscript.includes("bukhar") || lowerTranscript.includes("fever")) add("subjective", "Febrile symptoms reported by patient.");
-      if (lowerTranscript.includes("dard") || lowerTranscript.includes("pain")) add("subjective", "Localized pain/discomfort reported.");
+      if (lowerTranscript.includes("name is") || lowerTranscript.includes("naam")) {
+        const nameMatch = transcript.match(/(?:name is|naam|naav)\s+([a-zA-Z]+)/i);
+        if (nameMatch) finalResult.patient_name = nameMatch[1].toUpperCase();
+      }
+      
+      // Map Dictionary to Sections
+      CLINICAL_DICTIONARY.SYMPTOMS.forEach(s => {
+        if (lowerTranscript.includes(s.toLowerCase())) add("subjective", `Patient reports ${s.toLowerCase()}.`);
+      });
     }
 
     if (finalResult.soap.plan.length === 0) {
-      if (lowerTranscript.includes("crocin")) add("plan", "Paracetamol (Crocin) advised for symptomatic relief.");
-      if (lowerTranscript.includes("rest")) add("plan", "Adequate rest and reduced exertion recommended.");
-      if (lowerTranscript.includes("pani") || lowerTranscript.includes("hydration")) add("plan", "Aggressive hydration maintenance advised.");
+      Object.values(CLINICAL_DICTIONARY.MEDICINES).flat().forEach(m => {
+        if (lowerTranscript.includes(m.toLowerCase())) add("plan", `Initiated ${m} therapy as discussed.`);
+      });
     }
 
     return NextResponse.json(finalResult);
@@ -85,8 +96,8 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error("ENGINE ERROR:", error);
     return NextResponse.json({ 
-      patient_name: null,
-      soap: { subjective: [{text: "Local Scribe: Recovery Mode Active.", confidence: 50}], objective: [], assessment: [], plan: [] } 
+      patient_name: null, 
+      soap: { subjective: [{text: "System: Local Resilience Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
     });
   }
 }
