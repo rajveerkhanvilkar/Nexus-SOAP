@@ -93,7 +93,6 @@ export default function NexusSOAP() {
             const text = event.results[i][0].transcript;
             const lowerText = text.toLowerCase();
             
-            // INSTANT IDENTITY-FIRST ROLE INFERENCE
             const introKeywords = ["my name is", "mera naam", "maaza naav", "naam hai", "naav aahe", "i am", "mee"];
             const isIntroduction = introKeywords.some(k => lowerText.includes(k));
             const doctorKeywords = ["crocin", "paracetamol", "medicine", "dawa", "goli", "le lo", "take this", "report", "test", "checkup", "khaya tha", "hua tha", "kab se", "kya", "kaise"];
@@ -104,8 +103,6 @@ export default function NexusSOAP() {
             else if (isDoctorSignal) role = 'Doctor';
             
             const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-            
-            // FORCE INSTANT UI UPDATE
             setLiveTranscript(prev => [...prev, newLine]);
             transcriptRef.current.push(newLine);
           }
@@ -119,22 +116,24 @@ export default function NexusSOAP() {
     if (!aiResult) return;
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     
+    // PAGE 1: CLINICAL SUMMARY
     doc.setFillColor(16, 185, 129);
-    doc.rect(0, 0, pageWidth, 45, 'F');
+    doc.rect(0, 0, pageWidth, 50, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(26);
+    doc.setFontSize(28);
     doc.text("NEXUS SOAP", 20, 28);
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("AMBIENT CLINICAL INTELLIGENCE OPERATING SYSTEM", 20, 36);
+    doc.text("AMBIENT CLINICAL INTELLIGENCE OPERATING SYSTEM", 20, 38);
 
     const uniqueID = `NX-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
     doc.setFontSize(9);
-    doc.text(`PATIENT NAME: ${patientName || "NOT SPECIFIED"}`, pageWidth - 80, 22);
-    doc.text(`CONSULTATION ID: #${uniqueID}`, pageWidth - 80, 28);
-    doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - 80, 34);
+    doc.text(`PATIENT: ${patientName || "NOT SPECIFIED"}`, pageWidth - 85, 22);
+    doc.text(`ID: #${uniqueID}`, pageWidth - 85, 28);
+    doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - 85, 34);
 
     let yPos = 65;
     const sections = [
@@ -153,9 +152,8 @@ export default function NexusSOAP() {
       doc.setTextColor(60, 60, 60);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
-      
       if (s.d.length === 0) {
-        doc.text("• No data recorded.", 20, yPos);
+        doc.text("• No clinical data recorded.", 20, yPos);
         yPos += 8;
       } else {
         s.d.forEach((item: any) => {
@@ -166,6 +164,32 @@ export default function NexusSOAP() {
         });
       }
       yPos += 6;
+    });
+
+    // PAGE 2: APPENDIX A
+    doc.addPage();
+    doc.setFillColor(40, 40, 40);
+    doc.rect(0, 0, pageWidth, 45, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("APPENDIX A: CLINICAL AUDIT TRAIL", 20, 25);
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text("UNEDITED CONVERSATIONAL LOGS FOR COMPLIANCE VERIFICATION", 20, 35);
+
+    let auditY = 65;
+    doc.setFontSize(8);
+    liveTranscript.forEach(line => {
+      if (auditY > pageHeight - 30) { doc.addPage(); auditY = 30; }
+      doc.setTextColor(120, 120, 120);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${line.role.toUpperCase()} [${line.timestamp}]:`, 20, auditY);
+      doc.setTextColor(80, 80, 80);
+      doc.setFont("helvetica", "normal");
+      const transcriptLines = doc.splitTextToSize(line.text, pageWidth - 50);
+      doc.text(transcriptLines, 20, auditY + 5);
+      auditY += (transcriptLines.length * 4) + 12;
     });
 
     doc.save(`NEXUS_REPORT_${patientName || 'Clinical'}.pdf`);
