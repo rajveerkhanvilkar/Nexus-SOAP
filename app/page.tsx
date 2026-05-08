@@ -21,6 +21,65 @@ export default function NexusSOAP() {
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<any[]>([]);
 
+  const startRecognition = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-IN'; // Optimized for Hinglish/English mix
+
+    recognition.onresult = (event: any) => {
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          const text = event.results[i][0].transcript;
+          const lowerText = text.toLowerCase();
+          
+          const introKeywords = ["my name is", "mera naam", "maaza naav", "naam hai", "naav aahe", "i am", "mee"];
+          const isIntroduction = introKeywords.some(k => lowerText.includes(k));
+          const doctorKeywords = ["crocin", "paracetamol", "medicine", "dawa", "goli", "le lo", "take this", "report", "test", "checkup", "khaya tha", "hua tha", "kab se", "kya", "kaise"];
+          const isDoctorSignal = CLINICAL_DICTIONARY.ROLES.DOCTOR.some(s => lowerText.includes(s.toLowerCase())) || doctorKeywords.some(k => lowerText.includes(k));
+          
+          let role: 'Doctor' | 'Patient' = 'Patient';
+          if (isIntroduction) role = 'Patient';
+          else if (isDoctorSignal) role = 'Doctor';
+          
+          const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+          setLiveTranscript(prev => [...prev, newLine]);
+          transcriptRef.current.push(newLine);
+        }
+      }
+    };
+
+    // HYPER-RESILIENT AUTO-RESTART
+    recognition.onend = () => {
+      if (isRecordingRef.current) {
+        console.log("Speech engine timed out. Reconnecting...");
+        try {
+          recognitionRef.current.start();
+        } catch (e) {
+          console.error("Restart failed", e);
+        }
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.warn("Speech Error:", event.error);
+      if (event.error === 'no-speech' || event.error === 'network') {
+        // Critical for preventing silent failure
+        return; 
+      }
+    };
+
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error("Initial start failed", e);
+    }
+  };
+
   const toggleRecording = async () => {
     if (isRecording) {
       setIsRecording(false);
@@ -78,37 +137,7 @@ export default function NexusSOAP() {
         } catch (err) {}
       };
       updateVolume();
-      
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition) return;
-
-      const recognition = new SpeechRecognition();
-      recognitionRef.current = recognition;
-      recognition.continuous = true;
-      recognition.interimResults = true;
-
-      recognition.onresult = (event: any) => {
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            const text = event.results[i][0].transcript;
-            const lowerText = text.toLowerCase();
-            
-            const introKeywords = ["my name is", "mera naam", "maaza naav", "naam hai", "naav aahe", "i am", "mee"];
-            const isIntroduction = introKeywords.some(k => lowerText.includes(k));
-            const doctorKeywords = ["crocin", "paracetamol", "medicine", "dawa", "goli", "le lo", "take this", "report", "test", "checkup", "khaya tha", "hua tha", "kab se", "kya", "kaise"];
-            const isDoctorSignal = CLINICAL_DICTIONARY.ROLES.DOCTOR.some(s => lowerText.includes(s.toLowerCase())) || doctorKeywords.some(k => lowerText.includes(k));
-            
-            let role: 'Doctor' | 'Patient' = 'Patient';
-            if (isIntroduction) role = 'Patient';
-            else if (isDoctorSignal) role = 'Doctor';
-            
-            const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-            setLiveTranscript(prev => [...prev, newLine]);
-            transcriptRef.current.push(newLine);
-          }
-        }
-      };
-      recognition.start();
+      startRecognition();
     }
   };
 
@@ -118,7 +147,6 @@ export default function NexusSOAP() {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     
-    // --- PAGE 1: ELITE CLINICAL SUMMARY ---
     doc.setFillColor(16, 185, 129); 
     doc.rect(0, 0, pageWidth, 55, 'F');
     doc.setFillColor(40, 40, 40);
@@ -128,7 +156,6 @@ export default function NexusSOAP() {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(32);
     doc.text("NEXUS SOAP", 20, 30);
-    
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     doc.text("PREMIUM AMBIENT CLINICAL INTELLIGENCE OS", 20, 42);
@@ -182,7 +209,6 @@ export default function NexusSOAP() {
     doc.line(pageWidth - 80, pageHeight - 35, pageWidth - 20, pageHeight - 35);
     doc.text("DOCTOR'S SIGNATURE / AUTHENTICATION", pageWidth - 80, pageHeight - 30);
 
-    // --- PAGE 2: PREMIUM AUDIT TRAIL ---
     doc.addPage();
     doc.setFillColor(40, 40, 40);
     doc.rect(0, 0, pageWidth, 45, 'F');
