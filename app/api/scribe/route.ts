@@ -11,28 +11,30 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // NARRATIVE-CLINICAL INTELLIGENCE PROMPT
+    // HYPER-RESILIENT IDENTITY & NARRATIVE PROMPT
     const prompt = `
-      ROLE: Senior Medical Consultant & Scribe.
-      TASK: Extract high-fidelity, unique, and professional English SOAP notes.
+      ROLE: Precision Medical Scribe.
+      TASK: Extract Patient Name and unique English SOAP notes.
       
       TRANSCRIPT: 
       ${transcript}
 
-      STRICT NARRATIVE RULES:
-      1. ASSESSMENT: Do NOT use templates. Write a dynamic, custom clinical summary. Mention the patient's specific symptoms and your findings to justify the diagnosis. Every assessment MUST be unique to this specific encounter. 
-      2. SUBJECTIVE: Capture the patient's exact concerns in professional English.
-      3. OBJECTIVE: Record all vitals and examination findings mentioned.
-      4. PLAN: Verbatim medicines (e.g., Dolo 650) and follow-up.
-      5. NO REPETITION: Do not use the same phrasing across different patients or sections.
+      IDENTITY RULE: 
+      - Extract the Patient Name. Look for "My name is", "Mera naam", "Maaza naav", "I am", "This is". 
+      - The name is usually at the start of the conversation.
+      
+      NARRATIVE RULE:
+      - ASSESSMENT: Write a unique, dynamic clinical summary. Do not use templates.
+      - SOAP sections must be professional English.
+      - Verbatim medicines (e.g., Dolo 650).
 
-      STRUCTURE (JSON):
+      STRUCTURE:
       {
-        "patient_name": "NAME",
+        "patient_name": "UPPERCASE_NAME",
         "soap": {
           "subjective": [{"text": "...", "confidence": 100}],
           "objective": [{"text": "...", "confidence": 100}],
-          "assessment": [{"text": "DYNAMC_UNIQUE_SUMMARY_HERE", "confidence": 100}],
+          "assessment": [{"text": "...", "confidence": 100}],
           "plan": [{"text": "...", "confidence": 100}]
         }
       }
@@ -55,14 +57,33 @@ export async function POST(req: Request) {
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         finalResult.soap = parsed.soap;
-        finalResult.patient_name = parsed.patient_name;
-        finalResult.intelligence.mode = "Gemini Narrative v6.0";
+        finalResult.patient_name = parsed.patient_name?.toUpperCase() || null;
+        finalResult.intelligence.mode = "Gemini Identity v6.1";
       }
     } catch (e) {
-      console.warn("AI Engine slow, using Variety Fallback.");
+      console.warn("AI Engine slow, using Identity Fallback.");
     }
 
-    // STEEL-CORE VARIETY FALLBACK
+    // STEEL-CORE IDENTITY SCANNER (REINFORCED)
+    if (!finalResult.patient_name) {
+      const namePatterns = [
+        /(?:my name is|mera naam|maaza naav|i am|this is|name|naav)\s+([a-zA-Z]+)/i,
+        /([a-zA-Z]+)\s+(?:bol raha hoon|boltoy|here)/i
+      ];
+      
+      for (const pattern of namePatterns) {
+        const match = transcript.match(pattern);
+        if (match && match[1]) {
+          const name = match[1].trim().toUpperCase();
+          if (!["DOCTOR", "PATIENT", "THE", "MY"].includes(name)) {
+            finalResult.patient_name = name;
+            break;
+          }
+        }
+      }
+    }
+
+    // DYNAMIC FALLBACKS
     const lowerTranscript = transcript.toLowerCase();
     const add = (section: string, text: string) => {
       if (!finalResult.soap[section].some((s: any) => s.text === text)) {
@@ -70,34 +91,21 @@ export async function POST(req: Request) {
       }
     };
 
+    // Assessment Fallback (Varied)
     if (finalResult.soap.assessment.length === 0) {
-      // Logic for Varied Fallback
       Object.values(CLINICAL_DICTIONARY.DISEASES).flat().forEach(d => {
         if (lowerTranscript.includes(d.toLowerCase())) {
-          const variations = [
-            `Presentation and symptoms align with a diagnosis of ${d}.`,
-            `Observed clinical markers suggest an active case of ${d}.`,
-            `Patient's history and vitals are indicative of ${d}.`,
-            `Current clinical profile matches established patterns for ${d}.`
-          ];
-          add("assessment", variations[Math.floor(Math.random() * variations.length)]);
+          add("assessment", `Clinical presentation suggests a case of ${d}.`);
         }
       });
     }
 
-    // VITALS (OBJECTIVE)
+    // Vitals (Objective)
     const tempMatch = transcript.match(/(\d+)\s*(?:degree|temp|temperature)/i);
-    if (tempMatch) add("objective", `Recorded core temperature of ${tempMatch[1]}°F.`);
+    if (tempMatch) add("objective", `Observed temperature of ${tempMatch[1]}°F.`);
     
     const bpMatch = transcript.match(/bp\s*(?:is|of)?\s*(\d+)/i);
-    if (bpMatch) add("objective", `Hemodynamic status shows BP at ${bpMatch[1]} mmHg.`);
-
-    // MEDICINES (PLAN)
-    Object.values(CLINICAL_DICTIONARY.MEDICINES).flat().forEach(m => {
-      if (lowerTranscript.includes(m.toLowerCase())) {
-        add("plan", `Pharmacological intervention: Prescribed ${m}.`);
-      }
-    });
+    if (bpMatch) add("objective", `Recorded BP of ${bpMatch[1]} mmHg.`);
 
     return NextResponse.json(finalResult);
 
@@ -105,7 +113,7 @@ export async function POST(req: Request) {
     console.error("ENGINE ERROR:", error);
     return NextResponse.json({ 
       patient_name: null, 
-      soap: { subjective: [{text: "Narrative Recovery Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
+      soap: { subjective: [{text: "Identity Protection Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
     });
   }
 }
