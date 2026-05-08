@@ -117,21 +117,29 @@ export default function NexusSOAP() {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     
+    // FONT SETUP
+    doc.setFont("helvetica", "bold");
+
     // PAGE 1: CLINICAL SUMMARY
-    doc.setFillColor(16, 185, 129);
+    // Emerald Header Block
+    doc.setFillColor(16, 185, 129); // #10b981
     doc.rect(0, 0, pageWidth, 55, 'F');
+    
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(32);
     doc.text("NEXUS", 25, 30);
     doc.text("SOAP", 100, 30);
+    
     doc.setFontSize(12);
+    doc.setFont("helvetica", "normal");
     doc.text("AMBIENT CLINICAL INTELLIGENCE OS", 25, 42);
 
+    // Right-Aligned Metadata
     doc.setFontSize(8);
     const uniqueID = `NX-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-    doc.text(`Consultation ID: #${uniqueID}`, pageWidth - 80, 22);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, pageWidth - 80, 30);
-    doc.text(`EMR Status: ENCRYPTED (AES-256)`, pageWidth - 80, 38);
+    doc.text(`Consultation ID: #${uniqueID}`, pageWidth - 85, 22);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, pageWidth - 85, 30);
+    doc.text(`EMR Status: ENCRYPTED (AES-256)`, pageWidth - 85, 38);
 
     let yPos = 80;
     const sections = [
@@ -142,31 +150,43 @@ export default function NexusSOAP() {
     ];
 
     sections.forEach(s => {
-      doc.setFillColor(40, 40, 40);
-      doc.rect(20, yPos - 5, pageWidth - 40, 8, 'F');
+      // Section Header (Dark Grey Bar + Emerald Side-Accent)
+      doc.setFillColor(45, 45, 45);
+      doc.rect(20, yPos - 6, pageWidth - 40, 10, 'F');
       doc.setFillColor(16, 185, 129);
-      doc.rect(20, yPos - 5, 2, 8, 'F');
+      doc.rect(20, yPos - 6, 2, 10, 'F');
+      
       doc.setTextColor(16, 185, 129);
-      doc.setFontSize(9);
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
       doc.text(s.t, 25, yPos);
-      yPos += 12;
+      yPos += 14;
 
-      doc.setTextColor(60, 60, 60);
+      doc.setTextColor(80, 80, 80);
       doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+
       if (s.d.length === 0) {
-        doc.text("No data recorded for this clinical section.", 25, yPos);
+        doc.text("No clinical data recorded for this section.", 25, yPos);
         yPos += 10;
       } else {
         s.d.forEach((item: any) => {
           const lines = doc.splitTextToSize(item.text, pageWidth - 50);
           doc.text(lines, 25, yPos);
           yPos += (lines.length * 5) + 3;
+          
           doc.setFontSize(7);
           doc.setTextColor(180, 180, 180);
           doc.text(`AI Confidence: ${item.confidence || 95}% | Validated via Audit Trail`, 28, yPos);
-          yPos += 6;
+          yPos += 8;
+          
           doc.setFontSize(9);
-          doc.setTextColor(60, 60, 60);
+          doc.setTextColor(80, 80, 80);
+          
+          if (yPos > pageHeight - 20) {
+            doc.addPage();
+            yPos = 30;
+          }
         });
       }
       yPos += 5;
@@ -176,29 +196,36 @@ export default function NexusSOAP() {
     doc.addPage();
     doc.setFillColor(60, 60, 60);
     doc.rect(0, 0, pageWidth, 45, 'F');
+    
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
     doc.text("APPENDIX A: RAW CLINICAL AUDIT TRAIL", 20, 25);
+    
     doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
     doc.text("UNEDITED CONVERSATIONAL LOGS FOR COMPLIANCE VERIFICATION", 20, 35);
 
     let auditY = 65;
     doc.setFontSize(8);
     liveTranscript.forEach(line => {
-      if (auditY > pageHeight - 20) {
+      if (auditY > pageHeight - 30) {
         doc.addPage();
         auditY = 30;
       }
-      doc.setTextColor(100, 100, 100);
+      
+      doc.setTextColor(120, 120, 120);
       doc.setFont("helvetica", "bold");
       doc.text(`${line.role.toUpperCase()} [${line.timestamp}]:`, 20, auditY);
+      
+      doc.setTextColor(100, 100, 100);
       doc.setFont("helvetica", "normal");
-      const transcriptLines = doc.splitTextToSize(line.text, pageWidth - 40);
+      const transcriptLines = doc.splitTextToSize(line.text, pageWidth - 50);
       doc.text(transcriptLines, 20, auditY + 5);
       auditY += (transcriptLines.length * 4) + 12;
     });
 
-    doc.save(`NEXUS_SOAP_${patientName || 'Clinical_Report'}.pdf`);
+    doc.save(`NEXUS_REPORT_${patientName || 'Clinical'}.pdf`);
   };
 
   return (
