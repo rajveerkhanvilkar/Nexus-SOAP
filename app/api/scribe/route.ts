@@ -11,7 +11,7 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // HYPER-FLEXIBLE CLINICAL PROMPT
+    // UNIVERSAL SYMBOL & FEVER PROMPT
     const prompt = `
       ROLE: Precision Medical Scribe.
       TASK: Extract high-fidelity English SOAP notes.
@@ -20,9 +20,8 @@ export async function POST(req: Request) {
       ${transcript}
 
       STRICT VITALS RULE:
-      - Extract Temperature regardless of singular/plural (e.g., "102 degree", "102 degrees", "102.5 deg").
-      - Extract BP (e.g., "BP 120", "190 BP").
-      - Extract Oxygen/SpO2 levels.
+      - Extract Temperature regardless of symbols or words (e.g., "102°", "102 degree", "fever of 101").
+      - Extract BP and Oxygen.
       
       STRUCTURE (JSON):
       {
@@ -54,13 +53,13 @@ export async function POST(req: Request) {
         const parsed = JSON.parse(jsonMatch[0]);
         finalResult.soap = parsed.soap;
         finalResult.patient_name = parsed.patient_name?.toUpperCase() || null;
-        finalResult.intelligence.mode = "Gemini Hyper-Flex v6.3";
+        finalResult.intelligence.mode = "Gemini Symbol-V v6.5";
       }
     } catch (e) {
-      console.warn("AI Engine slow, using Hyper-Flex Fallback.");
+      console.warn("AI Engine slow, using Symbol-V Fallback.");
     }
 
-    // STEEL-CORE HYPER-FLEX FALLBACK
+    // STEEL-CORE SYMBOL & FEVER SCANNER
     const lowerTranscript = transcript.toLowerCase();
     const add = (section: string, text: string) => {
       if (!finalResult.soap[section].some((s: any) => s.text === text)) {
@@ -74,11 +73,14 @@ export async function POST(req: Request) {
       if (nameMatch) finalResult.patient_name = nameMatch[1].toUpperCase();
     }
 
-    // 2. REFINED TEMP SCANNER (Singular/Plural/Fractional)
-    const tempMatch = transcript.match(/(\d+(?:\.\d+)?)\s*(?:degree|degrees|deg|fahrenheit|f)/i);
+    // 2. REFINED TEMP SCANNER (Symbols, Degree, Fever patterns)
+    // Matches: 102, 102.5, 102°, 102 degree, fever of 101
+    const tempMatch = transcript.match(/(\d+(?:\.\d+)?)\s*(?:°|degree|degrees|deg|fahrenheit|f)/i) || 
+                      transcript.match(/(?:fever of|fever is|fever)\s*(\d+(?:\.\d+)?)/i);
+    
     if (tempMatch) add("objective", `Clinical Thermometry: ${tempMatch[1]}°F.`);
     
-    // 3. REFINED BP SCANNER
+    // 3. BP SCANNER
     const bpMatch = transcript.match(/(?:bp|blood pressure)\s*(?:is|of)?\s*(\d+)/i) || transcript.match(/(\d+)\s*(?:bp)/i);
     if (bpMatch) add("objective", `Hemodynamic Status: BP ${bpMatch[1]} mmHg.`);
 
@@ -113,7 +115,7 @@ export async function POST(req: Request) {
     console.error("ENGINE ERROR:", error);
     return NextResponse.json({ 
       patient_name: null, 
-      soap: { subjective: [{text: "Resilience Protocol: Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
+      soap: { subjective: [{text: "Symbol Resilience Protocol: Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
     });
   }
 }
