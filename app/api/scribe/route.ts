@@ -11,28 +11,28 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // HYPER-VIGILANT CLINICAL EXTRACTION PROMPT
+    // NARRATIVE-CLINICAL INTELLIGENCE PROMPT
     const prompt = `
-      ROLE: World-Class Medical Scribe.
-      TASK: Extract accurate, professional, and English-only SOAP notes.
+      ROLE: Senior Medical Consultant & Scribe.
+      TASK: Extract high-fidelity, unique, and professional English SOAP notes.
       
       TRANSCRIPT: 
       ${transcript}
 
-      STRICT EXTRACTION RULES:
-      1. OBJECTIVE: You MUST extract all vitals (Temperature, BP, Pulse, Oxygen/SpO2). Look for numbers like "102 degree", "BP is 120", "oxygen is low".
-      2. ASSESSMENT: You MUST extract the diagnosis. Look for "looks like", "seems to be", "diagnosis is", "assessment is". If a disease like "Viral Fever" is mentioned, it belongs here.
-      3. SUBJECTIVE: Symptoms reported by patient (Fever, Cough, etc.).
-      4. PLAN: Verbatim medicines (e.g., Dolo 650), rest, and hydration. Use exact brand names.
-      5. PHONETIC CORRECTION: Correct "do or 650" to "Dolo 650", "dis" to "this", etc.
-      
-      STRUCTURE (JSON ONLY):
+      STRICT NARRATIVE RULES:
+      1. ASSESSMENT: Do NOT use templates. Write a dynamic, custom clinical summary. Mention the patient's specific symptoms and your findings to justify the diagnosis. Every assessment MUST be unique to this specific encounter. 
+      2. SUBJECTIVE: Capture the patient's exact concerns in professional English.
+      3. OBJECTIVE: Record all vitals and examination findings mentioned.
+      4. PLAN: Verbatim medicines (e.g., Dolo 650) and follow-up.
+      5. NO REPETITION: Do not use the same phrasing across different patients or sections.
+
+      STRUCTURE (JSON):
       {
         "patient_name": "NAME",
         "soap": {
           "subjective": [{"text": "...", "confidence": 100}],
           "objective": [{"text": "...", "confidence": 100}],
-          "assessment": [{"text": "...", "confidence": 100}],
+          "assessment": [{"text": "DYNAMC_UNIQUE_SUMMARY_HERE", "confidence": 100}],
           "plan": [{"text": "...", "confidence": 100}]
         }
       }
@@ -56,47 +56,46 @@ export async function POST(req: Request) {
         const parsed = JSON.parse(jsonMatch[0]);
         finalResult.soap = parsed.soap;
         finalResult.patient_name = parsed.patient_name;
-        finalResult.intelligence.mode = "Gemini Vigilance v5.9";
+        finalResult.intelligence.mode = "Gemini Narrative v6.0";
       }
     } catch (e) {
-      console.warn("AI Engine slow, using Vigilance Fallback.");
+      console.warn("AI Engine slow, using Variety Fallback.");
     }
 
-    // STEEL-CORE VIGILANCE FALLBACK (REGEX & SEMANTIC)
+    // STEEL-CORE VARIETY FALLBACK
     const lowerTranscript = transcript.toLowerCase();
     const add = (section: string, text: string) => {
       if (!finalResult.soap[section].some((s: any) => s.text === text)) {
-        finalResult.soap[section].push({ text, confidence: 98 });
+        finalResult.soap[section].push({ text, confidence: 95 });
       }
     };
 
-    // 1. OBJECTIVE SCAN (VITALS)
+    if (finalResult.soap.assessment.length === 0) {
+      // Logic for Varied Fallback
+      Object.values(CLINICAL_DICTIONARY.DISEASES).flat().forEach(d => {
+        if (lowerTranscript.includes(d.toLowerCase())) {
+          const variations = [
+            `Presentation and symptoms align with a diagnosis of ${d}.`,
+            `Observed clinical markers suggest an active case of ${d}.`,
+            `Patient's history and vitals are indicative of ${d}.`,
+            `Current clinical profile matches established patterns for ${d}.`
+          ];
+          add("assessment", variations[Math.floor(Math.random() * variations.length)]);
+        }
+      });
+    }
+
+    // VITALS (OBJECTIVE)
     const tempMatch = transcript.match(/(\d+)\s*(?:degree|temp|temperature)/i);
-    if (tempMatch) add("objective", `Body Temperature recorded at ${tempMatch[1]}°F.`);
+    if (tempMatch) add("objective", `Recorded core temperature of ${tempMatch[1]}°F.`);
     
     const bpMatch = transcript.match(/bp\s*(?:is|of)?\s*(\d+)/i);
-    if (bpMatch) add("objective", `Blood Pressure (Systolic) measured at ${bpMatch[1]} mmHg.`);
+    if (bpMatch) add("objective", `Hemodynamic status shows BP at ${bpMatch[1]} mmHg.`);
 
-    const oxMatch = lowerTranscript.includes("oxygen") && (lowerTranscript.includes("low") || transcript.match(/(\d+)\s*%/));
-    if (oxMatch) add("objective", "Oxygen saturation levels (SpO2) noted as low/reduced.");
-
-    // 2. ASSESSMENT SCAN (DIAGNOSIS)
-    Object.values(CLINICAL_DICTIONARY.DISEASES).flat().forEach(d => {
-      if (lowerTranscript.includes(d.toLowerCase())) {
-        add("assessment", `Clinical evidence supports diagnosis of ${d}.`);
-      }
-    });
-
-    // 3. SUBJECTIVE SCAN
-    CLINICAL_DICTIONARY.SYMPTOMS.forEach(s => {
-      if (lowerTranscript.includes(s.toLowerCase())) add("subjective", `Patient reports symptoms of ${s.toLowerCase()}.`);
-    });
-
-    // 4. PLAN SCAN
+    // MEDICINES (PLAN)
     Object.values(CLINICAL_DICTIONARY.MEDICINES).flat().forEach(m => {
-      if (lowerTranscript.includes(m.toLowerCase()) || lowerTranscript.includes("do or 650")) {
-        const medName = lowerTranscript.includes("do or 650") ? "Dolo 650" : m;
-        add("plan", `Initiated treatment with ${medName} as prescribed.`);
+      if (lowerTranscript.includes(m.toLowerCase())) {
+        add("plan", `Pharmacological intervention: Prescribed ${m}.`);
       }
     });
 
@@ -106,7 +105,7 @@ export async function POST(req: Request) {
     console.error("ENGINE ERROR:", error);
     return NextResponse.json({ 
       patient_name: null, 
-      soap: { subjective: [{text: "Vigilance Mode: Security Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
+      soap: { subjective: [{text: "Narrative Recovery Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
     });
   }
 }
