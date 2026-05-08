@@ -10,38 +10,42 @@ interface PulseVisualizerProps {
 
 const PulseVisualizer: React.FC<PulseVisualizerProps> = ({ isProcessing, volume }) => {
   const bars = Array.from({ length: 40 });
-  // Increased sensitivity: volume > 1 is enough to trigger motion
-  const isActive = isProcessing || volume > 1;
+  const isActive = isProcessing || volume > 2;
 
   return (
-    <div className="relative flex items-center justify-center gap-[3px] h-24 w-full max-w-3xl px-4">
-      {bars.map((_, i) => (
-        <motion.div
-          key={i}
-          animate={{
-            // High-reactivity scaling
-            height: isActive 
-              ? [4, Math.max(4, (volume / 128) * 100 * (0.5 + Math.random())), 4] 
-              : 4,
-            opacity: isActive ? 1 : 0.2
-          }}
-          transition={{
-            duration: 0.1, // Ultra-fast response
-            repeat: Infinity,
-            ease: "linear",
-            delay: i * 0.005
-          }}
-          className={`w-1 sm:w-1.5 rounded-full transition-colors duration-300 ${
-            isActive ? 'bg-emerald-400' : 'bg-white/10'
-          }`}
-          style={{
-            boxShadow: isActive ? '0 0 15px rgba(16, 185, 129, 0.5)' : 'none'
-          }}
-        />
-      ))}
+    <div className="relative flex items-center justify-center gap-[4px] h-32 w-full max-w-4xl px-4 overflow-hidden">
+      {bars.map((_, i) => {
+        // Create a mathematical wave pattern so bars aren't random
+        const multiplier = 0.3 + Math.sin(i * 0.5) * 0.5;
+        
+        return (
+          <motion.div
+            key={i}
+            animate={{
+              // Silky smooth height calculation based on volume and wave position
+              height: isActive 
+                ? Math.max(4, (volume / 100) * 100 * multiplier + 5) 
+                : 4,
+              opacity: isActive ? 1 : 0.1
+            }}
+            transition={{
+              type: "spring",
+              stiffness: 300,
+              damping: 30,
+              mass: 0.8
+            }}
+            className={`w-1.5 rounded-full ${
+              isActive ? 'bg-emerald-400' : 'bg-white/10'
+            }`}
+            style={{
+              boxShadow: isActive ? '0 0 15px rgba(16, 185, 129, 0.3)' : 'none'
+            }}
+          />
+        );
+      })}
 
-      {/* AMBIENT GLOW */}
-      <div className={`absolute inset-0 bg-emerald-500/10 blur-3xl rounded-full transition-opacity duration-500 ${isActive ? 'opacity-100' : 'opacity-0'}`} />
+      {/* STABILIZED AMBIENT GLOW */}
+      <div className={`absolute inset-0 bg-emerald-500/5 blur-[100px] rounded-full transition-opacity duration-1000 ${isActive ? 'opacity-100' : 'opacity-0'}`} />
     </div>
   );
 };
