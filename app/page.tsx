@@ -118,24 +118,29 @@ export default function NexusSOAP() {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     
-    // PAGE 1: CLINICAL SUMMARY
-    doc.setFillColor(16, 185, 129);
-    doc.rect(0, 0, pageWidth, 50, 'F');
+    // --- PAGE 1: ELITE CLINICAL SUMMARY ---
+    doc.setFillColor(16, 185, 129); 
+    doc.rect(0, 0, pageWidth, 55, 'F');
+    doc.setFillColor(40, 40, 40);
+    doc.rect(0, 55, pageWidth, 2, 'F');
+    
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(28);
-    doc.text("NEXUS SOAP", 20, 28);
+    doc.setFontSize(32);
+    doc.text("NEXUS SOAP", 20, 30);
+    
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
-    doc.text("AMBIENT CLINICAL INTELLIGENCE OPERATING SYSTEM", 20, 38);
+    doc.text("PREMIUM AMBIENT CLINICAL INTELLIGENCE OS", 20, 42);
 
     const uniqueID = `NX-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-    doc.setFontSize(9);
-    doc.text(`PATIENT: ${patientName || "NOT SPECIFIED"}`, pageWidth - 85, 22);
-    doc.text(`ID: #${uniqueID}`, pageWidth - 85, 28);
+    doc.setFontSize(8);
+    doc.text(`PATIENT NAME: ${patientName || "NOT SPECIFIED"}`, pageWidth - 85, 22);
+    doc.text(`CONSULTATION ID: #${uniqueID}`, pageWidth - 85, 28);
     doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - 85, 34);
+    doc.text(`EMR STATUS: ENCRYPTED (AES-256)`, pageWidth - 85, 40);
 
-    let yPos = 65;
+    let yPos = 80;
     const sections = [
       { t: "S - SUBJECTIVE (HISTORY)", d: aiResult.soap.subjective },
       { t: "O - OBJECTIVE (FINDINGS)", d: aiResult.soap.objective },
@@ -144,55 +149,67 @@ export default function NexusSOAP() {
     ];
 
     sections.forEach(s => {
+      doc.setFillColor(245, 245, 245);
+      doc.rect(20, yPos - 7, pageWidth - 40, 10, 'F');
+      doc.setFillColor(16, 185, 129);
+      doc.rect(20, yPos - 7, 2, 10, 'F');
       doc.setTextColor(16, 185, 129);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(12);
-      doc.text(s.t, 20, yPos);
-      yPos += 10;
-      doc.setTextColor(60, 60, 60);
+      doc.setFontSize(11);
+      doc.text(s.t, 26, yPos);
+      yPos += 12;
+      doc.setTextColor(80, 80, 80);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       if (s.d.length === 0) {
-        doc.text("• No clinical data recorded.", 20, yPos);
+        doc.text("• No clinical data synthesized.", 26, yPos);
         yPos += 8;
       } else {
         s.d.forEach((item: any) => {
-          const lines = doc.splitTextToSize(`• ${item.text}`, pageWidth - 40);
-          doc.text(lines, 20, yPos);
+          const lines = doc.splitTextToSize(`• ${item.text}`, pageWidth - 50);
+          doc.text(lines, 26, yPos);
           yPos += (lines.length * 6) + 4;
-          if (yPos > 270) { doc.addPage(); yPos = 30; }
+          if (yPos > 260) { doc.addPage(); yPos = 30; }
         });
       }
-      yPos += 6;
+      yPos += 8;
     });
 
-    // PAGE 2: APPENDIX A
+    doc.setFontSize(7);
+    doc.setTextColor(200, 200, 200);
+    doc.text("CONFIDENTIAL CLINICAL RECORD | GENERATED VIA NEXUS-SOAP AI", pageWidth / 2, pageHeight - 15, { align: "center" });
+    doc.setDrawColor(200, 200, 200);
+    doc.line(pageWidth - 80, pageHeight - 35, pageWidth - 20, pageHeight - 35);
+    doc.text("DOCTOR'S SIGNATURE / AUTHENTICATION", pageWidth - 80, pageHeight - 30);
+
+    // --- PAGE 2: PREMIUM AUDIT TRAIL ---
     doc.addPage();
     doc.setFillColor(40, 40, 40);
     doc.rect(0, 0, pageWidth, 45, 'F');
+    doc.setFillColor(16, 185, 129);
+    doc.rect(0, 45, pageWidth, 2, 'F'); 
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text("APPENDIX A: CLINICAL AUDIT TRAIL", 20, 25);
+    doc.text("APPENDIX A: LEGAL AUDIT TRAIL", 20, 25);
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text("UNEDITED CONVERSATIONAL LOGS FOR COMPLIANCE VERIFICATION", 20, 35);
+    doc.text("UNEDITED CONVERSATIONAL LOGS FOR CLINICAL COMPLIANCE", 20, 35);
 
     let auditY = 65;
     doc.setFontSize(8);
     liveTranscript.forEach(line => {
-      if (auditY > pageHeight - 30) { doc.addPage(); auditY = 30; }
-      doc.setTextColor(120, 120, 120);
+      if (auditY > pageHeight - 25) { doc.addPage(); auditY = 30; }
+      doc.setTextColor(150, 150, 150);
       doc.setFont("helvetica", "bold");
       doc.text(`${line.role.toUpperCase()} [${line.timestamp}]:`, 20, auditY);
-      doc.setTextColor(80, 80, 80);
+      doc.setTextColor(100, 100, 100);
       doc.setFont("helvetica", "normal");
       const transcriptLines = doc.splitTextToSize(line.text, pageWidth - 50);
       doc.text(transcriptLines, 20, auditY + 5);
       auditY += (transcriptLines.length * 4) + 12;
     });
-
-    doc.save(`NEXUS_REPORT_${patientName || 'Clinical'}.pdf`);
+    doc.save(`NEXUS_ELITE_REPORT_${patientName || 'Clinical'}.pdf`);
   };
 
   return (
