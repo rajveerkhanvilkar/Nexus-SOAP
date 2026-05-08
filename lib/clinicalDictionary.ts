@@ -11,7 +11,7 @@ export const CLINICAL_DICTIONARY = {
     ]
   },
   DISEASES: {
-    RESPIRATORY: ["Pneumonia", "Bronchitis", "Asthma", "COPD", "COVID-19", "Sinusitis", "Pharyngitis", "Tuberculosis", "Sardi", "Khokla", "Th थंडी"],
+    RESPIRATORY: ["Pneumonia", "Bronchitis", "Asthma", "COPD", "COVID-19", "Sinusitis", "Pharyngitis", "Tuberculosis", "Sardi", "Khokla", "thandi"],
     METABOLIC: ["Diabetes Mellitus", "Sugar", "Hypertension", "BP", "Hypothyroidism", "Hyperlipidemia", "Obesity", "Anemia"],
     CARDIAC: ["Angina", "Myocardial Infarction", "Heart Failure", "Arrhythmia", "Palpitations", "Heart Attack"],
     GASTRO: ["Gastritis", "GERD", "IBS", "Diarrhea", "Constipation", "Peptic Ulcer", "Acidity", "Julab", "Ultya"],
