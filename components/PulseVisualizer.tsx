@@ -9,37 +9,37 @@ interface PulseVisualizerProps {
 }
 
 const PulseVisualizer: React.FC<PulseVisualizerProps> = ({ isProcessing, volume }) => {
-  // Creating a high-fidelity spectral array for the bar-graph look
-  const bars = Array.from({ length: 32 });
+  const bars = Array.from({ length: 40 });
+  const isActive = isProcessing || volume > 5;
 
   return (
-    <div className="relative flex items-center justify-center gap-[2px] h-20 w-full max-w-2xl px-4">
+    <div className="relative flex items-center justify-center gap-[3px] h-24 w-full max-w-3xl px-4">
       {bars.map((_, i) => (
         <motion.div
           key={i}
           animate={{
-            height: isProcessing 
-              ? [10, Math.random() * 60 + 20, 10] 
-              : [4, Math.max(4, (volume / 255) * 100 * Math.random() + 4), 4],
-            opacity: isProcessing ? [0.2, 0.6, 0.2] : 1
+            height: isActive 
+              ? [4, Math.max(4, (volume / 255) * 120 * Math.random() + 10), 4] 
+              : 4,
+            opacity: isActive ? [0.4, 1, 0.4] : 0.2
           }}
           transition={{
-            duration: isProcessing ? 0.8 : 0.1,
+            duration: isActive ? 0.15 : 1,
             repeat: Infinity,
             ease: "easeInOut",
-            delay: i * 0.02
+            delay: i * 0.01
           }}
           className={`w-1 sm:w-1.5 rounded-full ${
-            isProcessing ? 'bg-white/20' : 'bg-emerald-500/40'
+            isActive ? 'bg-emerald-400' : 'bg-white/10'
           }`}
           style={{
-            boxShadow: isProcessing ? 'none' : '0 0 15px rgba(16, 185, 129, 0.2)'
+            boxShadow: isActive ? '0 0 20px rgba(16, 185, 129, 0.4)' : 'none'
           }}
         />
       ))}
 
-      {/* CENTER GLOW */}
-      <div className="absolute inset-0 bg-emerald-500/5 blur-3xl rounded-full opacity-50" />
+      {/* AMBIENT GLOW */}
+      <div className={`absolute inset-0 bg-emerald-500/5 blur-3xl rounded-full transition-opacity duration-1000 ${isActive ? 'opacity-100' : 'opacity-0'}`} />
     </div>
   );
 };

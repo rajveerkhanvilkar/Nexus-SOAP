@@ -70,7 +70,8 @@ export default function NexusSOAP() {
           const checkVolume = () => {
             if (!isRecordingRef.current) return;
             analyser.getByteFrequencyData(dataArray);
-            setVolume(dataArray.reduce((a, b) => a + b) / dataArray.length);
+            const avg = dataArray.reduce((a, b) => a + b) / dataArray.length;
+            setVolume(avg);
             requestAnimationFrame(checkVolume);
           };
           checkVolume();
@@ -116,28 +117,32 @@ export default function NexusSOAP() {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     
+    // PREMIUM EMERALD HEADER
     doc.setFillColor(16, 185, 129);
     doc.rect(0, 0, pageWidth, 45, 'F');
+    
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(26);
-    doc.text("NEXUS SOAP", 20, 28);
+    doc.setFontSize(28);
+    doc.text("NEXUS SOAP", 20, 28); // Unified Header
+    
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     doc.text("AMBIENT CLINICAL INTELLIGENCE OPERATING SYSTEM", 20, 36);
 
+    // DYNAMIC METADATA
     const uniqueID = `NX-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
     doc.setFontSize(9);
-    doc.text(`PATIENT: ${patientName || "NOT SPECIFIED"}`, pageWidth - 80, 22);
-    doc.text(`CONSULTATION ID: #${uniqueID}`, pageWidth - 80, 28);
-    doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - 80, 34);
+    doc.text(`PATIENT NAME: ${patientName || "NOT SPECIFIED"}`, pageWidth - 85, 22);
+    doc.text(`CONSULTATION ID: #${uniqueID}`, pageWidth - 85, 28);
+    doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - 85, 34);
 
     let yPos = 65;
     const sections = [
-      { t: "S - SUBJECTIVE (HISTORY)", d: aiResult.soap.subjective },
-      { t: "O - OBJECTIVE (FINDINGS)", d: aiResult.soap.objective },
-      { t: "A - ASSESSMENT (SUMMARY)", d: aiResult.soap.assessment },
-      { t: "P - PLAN (TREATMENT)", d: aiResult.soap.plan }
+      { t: "HISTORY", d: aiResult.soap.subjective },
+      { t: "FINDINGS", d: aiResult.soap.objective },
+      { t: "SUMMARY", d: aiResult.soap.assessment },
+      { t: "TREATMENT", d: aiResult.soap.plan }
     ];
 
     sections.forEach(s => {
@@ -146,12 +151,13 @@ export default function NexusSOAP() {
       doc.setFontSize(12);
       doc.text(s.t, 20, yPos);
       yPos += 10;
+      
       doc.setTextColor(60, 60, 60);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       
       if (s.d.length === 0) {
-        doc.text("• No data recorded for this clinical section.", 20, yPos);
+        doc.text("• No clinical data recorded.", 20, yPos);
         yPos += 8;
       } else {
         s.d.forEach((item: any) => {
@@ -164,7 +170,7 @@ export default function NexusSOAP() {
       yPos += 6;
     });
 
-    doc.save(`NEXUS_SOAP_${patientName || 'Report'}.pdf`);
+    doc.save(`NEXUS_REPORT_${patientName || 'Clinical'}.pdf`);
   };
 
   return (
@@ -189,16 +195,20 @@ export default function NexusSOAP() {
             <SOAPCard letter="A" title="A - ASSESSMENT (SUMMARY)" items={isProcessing ? [{text: "Calculating...", confidence: 100}] : (aiResult?.soap?.assessment || [])} variant="green" />
             <SOAPCard letter="P" title="P - PLAN (TREATMENT)" items={isProcessing ? [{text: "Formulating...", confidence: 100}] : (aiResult?.soap?.plan || [])} variant="gold" />
           </div>
+
+          {/* RELOCATED AMBIENT STREAM (CENTER) */}
           <div className="glass rounded-[2rem] p-10 border-white/5 flex flex-col items-center justify-center min-h-[160px]">
             <div className="absolute top-6 left-8 flex items-center gap-3 opacity-40"><div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" /><span className="text-[10px] font-black tracking-widest uppercase">Ambient Stream</span></div>
             <PulseVisualizer isProcessing={isProcessing || isRecording} volume={volume} />
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div className="glass rounded-[1.5rem] p-6 border-white/5 space-y-4"><span className="text-[10px] font-black tracking-widest uppercase text-white/30">X-FACTOR DDP</span><div className="h-12 bg-emerald-500/10 rounded border border-emerald-500/10 animate-pulse" /></div>
             <div className="glass rounded-[1.5rem] p-6 border-white/5 space-y-4"><span className="text-[10px] font-black tracking-widest uppercase text-white/30">AUDITOR ALERT</span><p className="text-[10px] text-white/50">Analyzing...</p></div>
             <div className="glass rounded-[1.5rem] p-6 border-white/5 space-y-4"><span className="text-[10px] font-black tracking-widest uppercase text-white/30">BILLING</span><div className="flex gap-2"><div className="w-8 h-4 bg-white/5 rounded" /><div className="w-8 h-4 bg-white/5 rounded" /></div></div>
           </div>
         </div>
+
         <div className="col-span-12 lg:col-span-4 h-[calc(100vh-200px)]">
           <div className="glass rounded-[2rem] border-white/5 flex flex-col h-full overflow-hidden">
             <div className="p-6 border-b border-white/5 flex items-center gap-3"><ShieldCheck className="w-4 h-4 text-emerald-400" /><span className="text-[10px] font-black tracking-widest uppercase">Diarized Stream</span></div>
