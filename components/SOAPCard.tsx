@@ -22,14 +22,20 @@ export default function SOAPCard({ title, letter, children, delay = 0, items = [
   const bgColor = variant === 'green' ? 'bg-emerald-500/5' : 'bg-amber-500/5';
 
   return (
-    <motion.div
+    <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className={`glass rounded-3xl p-6 border ${borderColor} relative overflow-hidden group h-full`}
+      className={`glass rounded-[2rem] p-8 border-white/5 relative overflow-hidden group hover:border-emerald-500/20 transition-all duration-500 min-h-[220px]`}
     >
-      <div className={`absolute top-[-20px] right-[-20px] text-[120px] font-black text-white/[0.01] select-none`}>
+      {/* MOCKUP-SIGNATURE BACKGROUND LETTER */}
+      <div className="absolute -top-4 -right-4 text-[120px] font-black opacity-[0.03] select-none pointer-events-none group-hover:opacity-[0.05] transition-opacity duration-700 leading-none">
         {letter}
+      </div>
+
+      <div className="flex items-center gap-3 mb-6 relative z-10">
+        <div className={`w-1.5 h-6 rounded-full ${variant === 'green' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+        <h3 className="text-[10px] font-black tracking-[0.2em] uppercase text-white/80">{title}</h3>
       </div>
       
       <div className="flex items-center gap-3 mb-6 relative z-10">
