@@ -42,6 +42,6 @@ export const CLINICAL_DICTIONARY = {
   ],
   EXAM_TERMS: [
     "Tenderness", "Palpation", "Auscultation", "Dullness", "Normal Vitals", "Inflammation",
-    "Clear lungs", "Abdominal mass", "Stable", "Guarding", "Rigidity"
+    "Clear lungs", "Abdominal mass", "Stable", "Guarding", "Rigidity", "Degree", "Degrees", "Fahrenheit"
   ]
 };

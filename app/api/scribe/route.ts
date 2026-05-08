@@ -11,20 +11,18 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // QUAD-CORE CLINICAL EXTRACTION PROMPT
+    // HYPER-FLEXIBLE CLINICAL PROMPT
     const prompt = `
-      ROLE: Elite Medical Consultant.
-      TASK: Extract high-fidelity English SOAP notes and Patient Name.
+      ROLE: Precision Medical Scribe.
+      TASK: Extract high-fidelity English SOAP notes.
       
       TRANSCRIPT: 
       ${transcript}
 
-      RULES:
-      1. S - SUBJECTIVE: Patient complaints (Fever, Cough, Weakness). Translate Hinglish to English.
-      2. O - OBJECTIVE: Vitals (Temp, BP, Oxygen) and physical observations.
-      3. A - ASSESSMENT: Dynamic clinical summary based on the WHOLE convo.
-      4. P - PLAN: Treatment, verbatim meds (Dolo 650), rest, hydration.
-      5. IDENTITY: Extract Patient Name (Rajesh, Raj, etc.).
+      STRICT VITALS RULE:
+      - Extract Temperature regardless of singular/plural (e.g., "102 degree", "102 degrees", "102.5 deg").
+      - Extract BP (e.g., "BP 120", "190 BP").
+      - Extract Oxygen/SpO2 levels.
       
       STRUCTURE (JSON):
       {
@@ -56,13 +54,13 @@ export async function POST(req: Request) {
         const parsed = JSON.parse(jsonMatch[0]);
         finalResult.soap = parsed.soap;
         finalResult.patient_name = parsed.patient_name?.toUpperCase() || null;
-        finalResult.intelligence.mode = "Gemini Quad-Core v6.2";
+        finalResult.intelligence.mode = "Gemini Hyper-Flex v6.3";
       }
     } catch (e) {
-      console.warn("AI Engine slow, using Steel-Core Fallback.");
+      console.warn("AI Engine slow, using Hyper-Flex Fallback.");
     }
 
-    // STEEL-CORE QUAD-RECOVERY (GUARANTEED EXTRACTION)
+    // STEEL-CORE HYPER-FLEX FALLBACK
     const lowerTranscript = transcript.toLowerCase();
     const add = (section: string, text: string) => {
       if (!finalResult.soap[section].some((s: any) => s.text === text)) {
@@ -70,13 +68,21 @@ export async function POST(req: Request) {
       }
     };
 
-    // 1. IDENTITY SCAN
+    // 1. IDENTITY
     if (!finalResult.patient_name) {
       const nameMatch = transcript.match(/(?:my name is|mera naam|maaza naav|i am|this is|name)\s+([a-zA-Z]+)/i);
       if (nameMatch) finalResult.patient_name = nameMatch[1].toUpperCase();
     }
 
-    // 2. SUBJECTIVE SCAN (SYMPTOMS)
+    // 2. REFINED TEMP SCANNER (Singular/Plural/Fractional)
+    const tempMatch = transcript.match(/(\d+(?:\.\d+)?)\s*(?:degree|degrees|deg|fahrenheit|f)/i);
+    if (tempMatch) add("objective", `Clinical Thermometry: ${tempMatch[1]}°F.`);
+    
+    // 3. REFINED BP SCANNER
+    const bpMatch = transcript.match(/(?:bp|blood pressure)\s*(?:is|of)?\s*(\d+)/i) || transcript.match(/(\d+)\s*(?:bp)/i);
+    if (bpMatch) add("objective", `Hemodynamic Status: BP ${bpMatch[1]} mmHg.`);
+
+    // 4. SUBJECTIVE (SYMPTOMS)
     CLINICAL_DICTIONARY.SYMPTOMS.forEach(s => {
       if (lowerTranscript.includes(s.toLowerCase())) {
         const englishMap: any = { "taap": "Fever", "bukhar": "Fever", "khokla": "Cough", "khansi": "Cough", "ashaktapana": "Weakness", "kamzori": "Weakness" };
@@ -85,20 +91,14 @@ export async function POST(req: Request) {
       }
     });
 
-    // 3. OBJECTIVE SCAN (VITALS)
-    const tempMatch = transcript.match(/(\d+)\s*(?:degree|temp|temperature)/i);
-    if (tempMatch) add("objective", `Body Temperature: ${tempMatch[1]}°F.`);
-    const bpMatch = transcript.match(/bp\s*(?:is|of)?\s*(\d+)/i);
-    if (bpMatch) add("objective", `Blood Pressure: ${bpMatch[1]} mmHg.`);
-
-    // 4. ASSESSMENT SCAN (DIAGNOSIS)
+    // 5. ASSESSMENT
     if (finalResult.soap.assessment.length === 0) {
       Object.values(CLINICAL_DICTIONARY.DISEASES).flat().forEach(d => {
-        if (lowerTranscript.includes(d.toLowerCase())) add("assessment", `Clinical profile indicative of ${d}.`);
+        if (lowerTranscript.includes(d.toLowerCase())) add("assessment", `Clinical evidence indicative of ${d}.`);
       });
     }
 
-    // 5. PLAN SCAN (TREATMENT)
+    // 6. PLAN
     Object.values(CLINICAL_DICTIONARY.MEDICINES).flat().forEach(m => {
       if (lowerTranscript.includes(m.toLowerCase()) || (m === "Dolo 650" && lowerTranscript.includes("do or 650"))) {
         add("plan", `Initiated ${m} therapy.`);
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
     console.error("ENGINE ERROR:", error);
     return NextResponse.json({ 
       patient_name: null, 
-      soap: { subjective: [{text: "System Resilience: Full Scan Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
+      soap: { subjective: [{text: "Resilience Protocol: Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
     });
   }
 }
