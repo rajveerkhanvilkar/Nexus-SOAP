@@ -23,16 +23,12 @@ export default function NexusSOAP() {
   const transcriptRef = useRef<any[]>([]);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // ISOLATED CONTAINER SCROLL (NO PAGE JUMP)
   const scrollToBottom = () => {
     const container = scrollContainerRef.current;
     if (container) {
       const isFull = container.scrollHeight > container.clientHeight;
       if (isFull) {
-        container.scrollTo({
-          top: container.scrollHeight,
-          behavior: "smooth"
-        });
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
       }
     }
   };
@@ -41,8 +37,10 @@ export default function NexusSOAP() {
     if (liveTranscript.length > 0) scrollToBottom();
   }, [liveTranscript]);
 
+  // DEEP-CLEANUP START LOGIC
   const startRecognition = () => {
     if (isStartingRef.current) return;
+    
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
@@ -53,34 +51,26 @@ export default function NexusSOAP() {
       recognition.interimResults = true;
       recognition.lang = 'en-IN';
 
+      recognition.onstart = () => {
+        isStartingRef.current = false;
+        console.log("Engine: FRESH SESSION ACTIVE");
+      };
+
       recognition.onresult = (event: any) => {
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
             const text = event.results[i][0].transcript;
             const lowerText = text.toLowerCase();
-            
-            // IMPROVED SEMANTIC DIARIZATION
             const patientSignals = ["i have", "i feel", "mera naam", "mujhe", "problem", "dard", "my name is", "mera", "mala"];
-            
-            // Ignore "Doctor" if it's a question or address (Patient speaking)
             const isAddressToDoctor = lowerText.startsWith("doctor") || lowerText.includes("doctor what") || lowerText.includes("doctor please");
-            
-            const doctorSignals = [
-              "prescribing", "take", "medicine", "dawa", "goli", "treatment", "follow up",
-              "examine", "check", "bp is", "temperature is", "report", "diagnosis", "rest", "hydration",
-              "theek hai", "let me", "breathe", "driving a" // Added 'driving a' to catch STT errors for 'prescribing'
-            ];
-
+            const doctorSignals = ["prescribing", "take", "medicine", "dawa", "goli", "treatment", "follow up", "examine", "check", "bp is", "temperature is", "report", "diagnosis", "rest", "hydration", "theek hai", "let me", "breathe", "driving a"];
             const hasPatientSignal = patientSignals.some(k => lowerText.includes(k));
             const hasDoctorSignal = doctorSignals.some(k => lowerText.includes(k)) && !isAddressToDoctor;
 
             let role: 'Doctor' | 'Patient' = 'Patient';
             if (hasDoctorSignal) role = 'Doctor';
             else if (hasPatientSignal) role = 'Patient';
-            else {
-              // Continuity check
-              role = (transcriptRef.current.length > 0 && transcriptRef.current[transcriptRef.current.length-1].role === 'Doctor' && !isAddressToDoctor) ? 'Patient' : 'Doctor';
-            }
+            else role = (transcriptRef.current.length > 0 && transcriptRef.current[transcriptRef.current.length-1].role === 'Doctor' && !isAddressToDoctor) ? 'Patient' : 'Doctor';
             
             const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
             setLiveTranscript(prev => [...prev, newLine]);
@@ -88,17 +78,43 @@ export default function NexusSOAP() {
           }
         }
       };
-      recognition.onend = () => { if (isRecordingRef.current) setTimeout(() => { if (isRecordingRef.current) startRecognition(); }, 300); };
-      recognition.onerror = () => { isStartingRef.current = false; };
+
+      recognition.onend = () => {
+        if (isRecordingRef.current) {
+          setTimeout(() => { if (isRecordingRef.current) startRecognition(); }, 300);
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn("Recognition Error:", event.error);
+        isStartingRef.current = false;
+        if (event.error === 'not-allowed') {
+          setIsRecording(false);
+          isRecordingRef.current = false;
+        }
+      };
+
       isStartingRef.current = true;
       recognition.start();
-    } catch (e) { isStartingRef.current = false; }
+    } catch (e) { 
+      isStartingRef.current = false; 
+    }
   };
 
   const toggleRecording = async () => {
     if (isRecording) {
-      setIsRecording(false); isRecordingRef.current = false; recognitionRef.current?.stop();
-      setIsProcessing(true); setActiveAgent("Scribe");
+      setIsRecording(false);
+      isRecordingRef.current = false;
+      isStartingRef.current = false; // Reset start flag
+      
+      // FORCE-ABORT PREVIOUS ENGINE
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+        recognitionRef.current = null;
+      }
+      
+      setIsProcessing(true);
+      setActiveAgent("Scribe");
       const transcriptText = transcriptRef.current.map(l => `${l.role}: ${l.text}`).join("\n");
       try {
         const response = await fetch("/api/scribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transcript: transcriptText }) });
@@ -108,7 +124,14 @@ export default function NexusSOAP() {
         setTimeout(() => { setIsProcessing(false); setActiveAgent("Done"); }, 500);
       } catch (err) { setIsProcessing(false); }
     } else {
-      setIsRecording(true); isRecordingRef.current = true; transcriptRef.current = []; setLiveTranscript([]); setAiResult(null);
+      // FRESH START INITIALIZATION
+      setIsRecording(true);
+      isRecordingRef.current = true;
+      isStartingRef.current = false; // Ensure flag is clear for new handshake
+      transcriptRef.current = [];
+      setLiveTranscript([]);
+      setAiResult(null);
+
       const updateVolume = async () => {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -126,7 +149,10 @@ export default function NexusSOAP() {
           checkVolume();
         } catch (err) {}
       };
-      updateVolume(); startRecognition();
+      
+      updateVolume();
+      // Hardware breathing room before start
+      setTimeout(() => startRecognition(), 100);
     }
   };
 
