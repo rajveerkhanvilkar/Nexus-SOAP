@@ -137,7 +137,7 @@ export default function NexusSOAP() {
       { t: "S - SUBJECTIVE (HISTORY)", d: aiResult.soap.subjective },
       { t: "O - OBJECTIVE (FINDINGS)", d: aiResult.soap.objective },
       { t: "A - ASSESSMENT (SUMMARY)", d: aiResult.soap.assessment },
-      { t: "P - PLAN (PROTOCOL)", d: aiResult.soap.plan }
+      { t: "P - PLAN (TREATMENT)", d: aiResult.soap.plan }
     ];
 
     sections.forEach(s => {
@@ -187,7 +187,7 @@ export default function NexusSOAP() {
             <SOAPCard letter="S" title="S - SUBJECTIVE (HISTORY)" items={isProcessing ? [{text: "Synthesizing...", confidence: 100}] : (aiResult?.soap?.subjective || [])} variant="green" />
             <SOAPCard letter="O" title="O - OBJECTIVE (FINDINGS)" items={isProcessing ? [{text: "Normalizing...", confidence: 100}] : (aiResult?.soap?.objective || [])} variant="gold" />
             <SOAPCard letter="A" title="A - ASSESSMENT (SUMMARY)" items={isProcessing ? [{text: "Calculating...", confidence: 100}] : (aiResult?.soap?.assessment || [])} variant="green" />
-            <SOAPCard letter="P" title="P - PLAN (PROTOCOL)" items={isProcessing ? [{text: "Formulating...", confidence: 100}] : (aiResult?.soap?.plan || [])} variant="gold" />
+            <SOAPCard letter="P" title="P - PLAN (TREATMENT)" items={isProcessing ? [{text: "Formulating...", confidence: 100}] : (aiResult?.soap?.plan || [])} variant="gold" />
           </div>
           <div className="glass rounded-[2rem] p-10 border-white/5 flex flex-col items-center justify-center min-h-[160px]">
             <div className="absolute top-6 left-8 flex items-center gap-3 opacity-40"><div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" /><span className="text-[10px] font-black tracking-widest uppercase">Ambient Stream</span></div>
