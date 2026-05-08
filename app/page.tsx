@@ -19,64 +19,70 @@ export default function NexusSOAP() {
   const [aiResult, setAiResult] = useState<any>(null);
   
   const recognitionRef = useRef<any>(null);
+  const isStartingRef = useRef(false);
   const transcriptRef = useRef<any[]>([]);
 
+  // MILITARY-GRADE RECOGNITION MANAGER
   const startRecognition = () => {
+    if (isStartingRef.current) return;
+    
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
-    const recognition = new SpeechRecognition();
-    recognitionRef.current = recognition;
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-IN'; // Optimized for Hinglish/English mix
-
-    recognition.onresult = (event: any) => {
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          const text = event.results[i][0].transcript;
-          const lowerText = text.toLowerCase();
-          
-          const introKeywords = ["my name is", "mera naam", "maaza naav", "naam hai", "naav aahe", "i am", "mee"];
-          const isIntroduction = introKeywords.some(k => lowerText.includes(k));
-          const doctorKeywords = ["crocin", "paracetamol", "medicine", "dawa", "goli", "le lo", "take this", "report", "test", "checkup", "khaya tha", "hua tha", "kab se", "kya", "kaise"];
-          const isDoctorSignal = CLINICAL_DICTIONARY.ROLES.DOCTOR.some(s => lowerText.includes(s.toLowerCase())) || doctorKeywords.some(k => lowerText.includes(k));
-          
-          let role: 'Doctor' | 'Patient' = 'Patient';
-          if (isIntroduction) role = 'Patient';
-          else if (isDoctorSignal) role = 'Doctor';
-          
-          const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-          setLiveTranscript(prev => [...prev, newLine]);
-          transcriptRef.current.push(newLine);
-        }
-      }
-    };
-
-    // HYPER-RESILIENT AUTO-RESTART
-    recognition.onend = () => {
-      if (isRecordingRef.current) {
-        console.log("Speech engine timed out. Reconnecting...");
-        try {
-          recognitionRef.current.start();
-        } catch (e) {
-          console.error("Restart failed", e);
-        }
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      console.warn("Speech Error:", event.error);
-      if (event.error === 'no-speech' || event.error === 'network') {
-        // Critical for preventing silent failure
-        return; 
-      }
-    };
-
     try {
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-IN';
+
+      recognition.onstart = () => {
+        isStartingRef.current = false;
+        console.log("Speech Engine: ACTIVE");
+      };
+
+      recognition.onresult = (event: any) => {
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            const text = event.results[i][0].transcript;
+            const lowerText = text.toLowerCase();
+            
+            const introKeywords = ["my name is", "mera naam", "maaza naav", "naam hai", "naav aahe", "i am", "mee"];
+            const isIntroduction = introKeywords.some(k => lowerText.includes(k));
+            const doctorKeywords = ["crocin", "paracetamol", "medicine", "dawa", "goli", "le lo", "take this", "report", "test", "checkup", "khaya tha", "hua tha", "kab se", "kya", "kaise"];
+            const isDoctorSignal = CLINICAL_DICTIONARY.ROLES.DOCTOR.some(s => lowerText.includes(s.toLowerCase())) || doctorKeywords.some(k => lowerText.includes(k));
+            
+            let role: 'Doctor' | 'Patient' = 'Patient';
+            if (isIntroduction) role = 'Patient';
+            else if (isDoctorSignal) role = 'Doctor';
+            
+            const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+            setLiveTranscript(prev => [...prev, newLine]);
+            transcriptRef.current.push(newLine);
+          }
+        }
+      };
+
+      recognition.onend = () => {
+        if (isRecordingRef.current) {
+          console.log("Speech Engine: AUTO-RESTARTING...");
+          setTimeout(() => {
+            if (isRecordingRef.current) startRecognition();
+          }, 300); // 300ms Clean Buffer
+        }
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn("Speech Engine Error:", event.error);
+        if (event.error === 'aborted' || event.error === 'no-speech') return;
+        isStartingRef.current = false;
+      };
+
+      isStartingRef.current = true;
       recognition.start();
     } catch (e) {
-      console.error("Initial start failed", e);
+      isStartingRef.current = false;
+      console.error("Critical Engine Failure", e);
     }
   };
 
