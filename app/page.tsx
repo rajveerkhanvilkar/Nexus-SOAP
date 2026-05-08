@@ -24,22 +24,16 @@ export default function NexusSOAP() {
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // THRESHOLD-AWARE AUTO-SCROLL
   const scrollToBottom = () => {
     const container = scrollContainerRef.current;
     if (container) {
-      // Only scroll if the content is actually overflowing (List is Full)
       const isFull = container.scrollHeight > container.clientHeight;
-      if (isFull) {
-        transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }
+      if (isFull) transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   };
 
   useEffect(() => {
-    if (liveTranscript.length > 0) {
-      scrollToBottom();
-    }
+    if (liveTranscript.length > 0) scrollToBottom();
   }, [liveTranscript]);
 
   const startRecognition = () => {
@@ -131,7 +125,15 @@ export default function NexusSOAP() {
     doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - 85, 34);
     doc.text(`EMR STATUS: ENCRYPTED (AES-256)`, pageWidth - 85, 40);
     let yPos = 80;
-    const sections = [{ t: "S - SUBJECTIVE (HISTORY)", d: aiResult.soap.subjective }, { t: "O - OBJECTIVE (FINDINGS)", d: aiResult.soap.objective }, { t: "A - ASSESSMENT (SUMMARY)", d: aiResult.soap.assessment }, { t: "P - PLAN (TREATMENT)", d: aiResult.soap.plan }];
+    
+    // CLEANED PDF TITLES
+    const sections = [
+      { t: "SUBJECTIVE (HISTORY)", d: aiResult.soap.subjective },
+      { t: "OBJECTIVE (FINDINGS)", d: aiResult.soap.objective },
+      { t: "ASSESSMENT (SUMMARY)", d: aiResult.soap.assessment },
+      { t: "PLAN (TREATMENT)", d: aiResult.soap.plan }
+    ];
+
     sections.forEach(s => {
       doc.setFillColor(245, 245, 245); doc.rect(20, yPos - 7, pageWidth - 40, 10, 'F');
       doc.setFillColor(16, 185, 129); doc.rect(20, yPos - 7, 2, 10, 'F');
@@ -171,10 +173,10 @@ export default function NexusSOAP() {
       <div className="max-w-[1700px] mx-auto grid grid-cols-12 gap-8 pt-32 px-8 pb-20">
         <div className="col-span-12 lg:col-span-8 space-y-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <SOAPCard letter="S" title="S - SUBJECTIVE (HISTORY)" items={isProcessing ? [{text: "Synthesizing...", confidence: 100}] : (aiResult?.soap?.subjective || [])} variant="green" />
-            <SOAPCard letter="O" title="O - OBJECTIVE (FINDINGS)" items={isProcessing ? [{text: "Normalizing...", confidence: 100}] : (aiResult?.soap?.objective || [])} variant="gold" />
-            <SOAPCard letter="A" title="A - ASSESSMENT (SUMMARY)" items={isProcessing ? [{text: "Calculating...", confidence: 100}] : (aiResult?.soap?.assessment || [])} variant="green" />
-            <SOAPCard letter="P" title="P - PLAN (TREATMENT)" items={isProcessing ? [{text: "Formulating...", confidence: 100}] : (aiResult?.soap?.plan || [])} variant="gold" />
+            <SOAPCard letter="S" title="SUBJECTIVE (HISTORY)" items={isProcessing ? [{text: "Synthesizing...", confidence: 100}] : (aiResult?.soap?.subjective || [])} variant="green" />
+            <SOAPCard letter="O" title="OBJECTIVE (FINDINGS)" items={isProcessing ? [{text: "Normalizing...", confidence: 100}] : (aiResult?.soap?.objective || [])} variant="gold" />
+            <SOAPCard letter="A" title="ASSESSMENT (SUMMARY)" items={isProcessing ? [{text: "Calculating...", confidence: 100}] : (aiResult?.soap?.assessment || [])} variant="green" />
+            <SOAPCard letter="P" title="PLAN (TREATMENT)" items={isProcessing ? [{text: "Formulating...", confidence: 100}] : (aiResult?.soap?.plan || [])} variant="gold" />
           </div>
           <div className="glass rounded-[2rem] p-10 border-white/5 flex flex-col items-center justify-center min-h-[160px]">
             <div className="absolute top-6 left-8 flex items-center gap-3 opacity-40"><div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" /><span className="text-[10px] font-black tracking-widest uppercase">Ambient Stream</span></div>
