@@ -38,89 +38,62 @@ export default function NexusSOAP() {
     if (liveTranscript.length > 0) scrollToBottom();
   }, [liveTranscript]);
 
-  // MOBILE-FIRST SPEECH ENGINE
-  const startRecognition = () => {
-    if (isStartingRef.current) return;
-    
-    // Explicit Mobile Prefixing
+  // DIRECT-LINK MOBILE SPEECH ENGINE
+  const initializeRecognition = () => {
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Speech Recognition not supported on this mobile browser. Please use Chrome or Safari.");
-      return;
-    }
+    if (!SpeechRecognition) return null;
 
-    try {
-      const recognition = new SpeechRecognition();
-      recognitionRef.current = recognition;
-      
-      // Mobile Hardware Optimization
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-IN';
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-IN';
 
-      recognition.onstart = () => {
-        isStartingRef.current = false;
-        console.log("MOBILE ENGINE: ACTIVE");
-      };
+    recognition.onstart = () => {
+      isStartingRef.current = false;
+      console.log("MOBILE DIRECT-LINK: ACTIVE");
+    };
 
-      recognition.onresult = (event: any) => {
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            const text = event.results[i][0].transcript;
-            const lowerText = text.toLowerCase();
-            const patientSignals = ["i have", "i feel", "mera naam", "mujhe", "problem", "dard", "my name is", "mera", "mala"];
-            const isAddressToDoctor = lowerText.startsWith("doctor") || lowerText.includes("doctor what") || lowerText.includes("doctor please");
-            const doctorSignals = ["prescribing", "take", "medicine", "dawa", "goli", "treatment", "follow up", "examine", "check", "bp is", "temperature is", "report", "diagnosis", "rest", "hydration", "theek hai", "let me", "breathe", "driving a"];
-            const hasPatientSignal = patientSignals.some(k => lowerText.includes(k));
-            const hasDoctorSignal = doctorSignals.some(k => lowerText.includes(k)) && !isAddressToDoctor;
+    recognition.onresult = (event: any) => {
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          const text = event.results[i][0].transcript;
+          const lowerText = text.toLowerCase();
+          const patientSignals = ["i have", "i feel", "mera naam", "mujhe", "problem", "dard", "my name is", "mera", "mala"];
+          const isAddressToDoctor = lowerText.startsWith("doctor") || lowerText.includes("doctor what") || lowerText.includes("doctor please");
+          const doctorSignals = ["prescribing", "take", "medicine", "dawa", "goli", "treatment", "follow up", "examine", "check", "bp is", "temperature is", "report", "diagnosis", "rest", "hydration", "theek hai", "let me", "breathe", "driving a"];
+          const hasPatientSignal = patientSignals.some(k => lowerText.includes(k));
+          const hasDoctorSignal = doctorSignals.some(k => lowerText.includes(k)) && !isAddressToDoctor;
 
-            let role: 'Doctor' | 'Patient' = 'Patient';
-            if (hasDoctorSignal) role = 'Doctor';
-            else if (hasPatientSignal) role = 'Patient';
-            else role = (transcriptRef.current.length > 0 && transcriptRef.current[transcriptRef.current.length-1].role === 'Doctor' && !isAddressToDoctor) ? 'Patient' : 'Doctor';
-            
-            const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-            setLiveTranscript(prev => [...prev, newLine]);
-            transcriptRef.current.push(newLine);
-          }
+          let role: 'Doctor' | 'Patient' = 'Patient';
+          if (hasDoctorSignal) role = 'Doctor';
+          else if (hasPatientSignal) role = 'Patient';
+          else role = (transcriptRef.current.length > 0 && transcriptRef.current[transcriptRef.current.length-1].role === 'Doctor' && !isAddressToDoctor) ? 'Patient' : 'Doctor';
+          
+          const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+          setLiveTranscript(prev => [...prev, newLine]);
+          transcriptRef.current.push(newLine);
         }
-      };
+      }
+    };
 
-      recognition.onend = () => {
-        // MOBILE PERSISTENCE HACK: Auto-restart if browser tries to sleep
-        if (isRecordingRef.current) {
-          setTimeout(() => { 
-            if (isRecordingRef.current) {
-              try { recognition.start(); } catch(e) {}
-            }
-          }, 250);
-        }
-      };
+    recognition.onend = () => {
+      if (isRecordingRef.current) {
+        try { recognition.start(); } catch(e) {}
+      }
+    };
 
-      recognition.onerror = (event: any) => {
-        console.warn("Mobile Engine Error:", event.error);
-        isStartingRef.current = false;
-        // Handle Mobile Permission Denial
-        if (event.error === 'not-allowed') {
-          alert("Microphone permission denied. Please enable it in your phone settings.");
-          setIsRecording(false);
-          isRecordingRef.current = false;
-        }
-      };
+    recognition.onerror = (event: any) => {
+      console.warn("Speech Error:", event.error);
+      isStartingRef.current = false;
+    };
 
-      isStartingRef.current = true;
-      recognition.start();
-    } catch (e) { 
-      isStartingRef.current = false; 
-    }
+    return recognition;
   };
 
   const toggleRecording = async () => {
     if (isRecording) {
       setIsRecording(false);
       isRecordingRef.current = false;
-      isStartingRef.current = false;
-      
       if (recognitionRef.current) {
         recognitionRef.current.abort();
         recognitionRef.current = null;
@@ -137,25 +110,33 @@ export default function NexusSOAP() {
         setTimeout(() => { setIsProcessing(false); setActiveAgent("Done"); }, 500);
       } catch (err) { setIsProcessing(false); }
     } else {
+      // SYNCHRONOUS INITIALIZATION FOR MOBILE SECURITY
+      const recognition = initializeRecognition();
+      if (!recognition) {
+        alert("Microphone API not supported on this browser.");
+        return;
+      }
+      
       setIsRecording(true);
       isRecordingRef.current = true;
-      isStartingRef.current = false;
       transcriptRef.current = [];
       setLiveTranscript([]);
       setAiResult(null);
 
-      // MOBILE AUDIO RESUME PROTOCOL
+      // Start engine IMMEDIATELY in the click event
+      recognitionRef.current = recognition;
+      try {
+        recognition.start();
+      } catch (e) {
+        console.error("Direct-Link Start Failed:", e);
+      }
+
+      // Visualizer activation follows
       const updateVolume = async () => {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
           const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-          audioContextRef.current = audioContext;
-          
-          // Force wake on mobile
-          if (audioContext.state === 'suspended') {
-            await audioContext.resume();
-          }
-
+          if (audioContext.state === 'suspended') await audioContext.resume();
           const analyser = audioContext.createAnalyser();
           const source = audioContext.createMediaStreamSource(stream);
           source.connect(analyser);
@@ -167,13 +148,9 @@ export default function NexusSOAP() {
             requestAnimationFrame(checkVolume);
           };
           checkVolume();
-        } catch (err) {
-          console.error("Mobile Mic Error:", err);
-        }
+        } catch (err) {}
       };
-      
       updateVolume();
-      setTimeout(() => startRecognition(), 150);
     }
   };
 
