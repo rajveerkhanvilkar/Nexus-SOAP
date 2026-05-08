@@ -22,13 +22,24 @@ export default function NexusSOAP() {
   const isStartingRef = useRef(false);
   const transcriptRef = useRef<any[]>([]);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // THRESHOLD-AWARE AUTO-SCROLL
   const scrollToBottom = () => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = scrollContainerRef.current;
+    if (container) {
+      // Only scroll if the content is actually overflowing (List is Full)
+      const isFull = container.scrollHeight > container.clientHeight;
+      if (isFull) {
+        transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    }
   };
 
   useEffect(() => {
-    if (liveTranscript.length > 0) scrollToBottom();
+    if (liveTranscript.length > 0) {
+      scrollToBottom();
+    }
   }, [liveTranscript]);
 
   const startRecognition = () => {
@@ -48,46 +59,21 @@ export default function NexusSOAP() {
           if (event.results[i].isFinal) {
             const text = event.results[i][0].transcript;
             const lowerText = text.toLowerCase();
-            
-            // ELITE DIARIZATION ENGINE (ROLE INFERENCE)
             const patientKeywords = ["my name is", "mera naam", "maaza naav", "naam hai", "i feel", "pain in my", "i am having", "mala", "mujhe"];
-            
-            const doctorActionKeywords = [
-              "prescribing", "take this", "medicine", "dawa", "goli", "injection", "treatment", "follow up",
-              "examine", "check", "bp is", "temperature is", "report", "test", "diagnosis", "rest", "hydration",
-              "theek hai", "okay", "let me see", "open your mouth", "breathe"
-            ];
-
+            const doctorActionKeywords = ["prescribing", "take this", "medicine", "dawa", "goli", "injection", "treatment", "follow up", "examine", "check", "bp is", "temperature is", "report", "test", "diagnosis", "rest", "hydration", "theek hai", "okay", "let me see", "open your mouth", "breathe"];
             const isPatientSignal = patientKeywords.some(k => lowerText.includes(k));
-            
-            const isDoctorSignal = doctorActionKeywords.some(k => lowerText.includes(k)) || 
-                                   CLINICAL_DICTIONARY.MEDICINES.ANTIBIOTICS.some(m => lowerText.includes(m.toLowerCase())) ||
-                                   CLINICAL_DICTIONARY.MEDICINES.PAINKILLERS.some(m => lowerText.includes(m.toLowerCase()));
-
+            const isDoctorSignal = doctorActionKeywords.some(k => lowerText.includes(k)) || CLINICAL_DICTIONARY.MEDICINES.ANTIBIOTICS.some(m => lowerText.includes(m.toLowerCase())) || CLINICAL_DICTIONARY.MEDICINES.PAINKILLERS.some(m => lowerText.includes(m.toLowerCase()));
             let role: 'Doctor' | 'Patient' = 'Patient';
-            
-            if (isDoctorSignal && !isPatientSignal) {
-              role = 'Doctor';
-            } else if (isPatientSignal) {
-              role = 'Patient';
-            } else {
-              // Default to Doctor if clinical terms are found, otherwise fallback to last role or Patient
-              role = (transcriptRef.current.length > 0 && transcriptRef.current[transcriptRef.current.length - 1].role === 'Doctor') ? 'Patient' : 'Doctor';
-            }
-            
+            if (isDoctorSignal && !isPatientSignal) role = 'Doctor';
+            else if (isPatientSignal) role = 'Patient';
+            else role = (transcriptRef.current.length > 0 && transcriptRef.current[transcriptRef.current.length - 1].role === 'Doctor') ? 'Patient' : 'Doctor';
             const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
             setLiveTranscript(prev => [...prev, newLine]);
             transcriptRef.current.push(newLine);
           }
         }
       };
-
-      recognition.onend = () => {
-        if (isRecordingRef.current) {
-          setTimeout(() => { if (isRecordingRef.current) startRecognition(); }, 300);
-        }
-      };
-
+      recognition.onend = () => { if (isRecordingRef.current) setTimeout(() => { if (isRecordingRef.current) startRecognition(); }, 300); };
       recognition.onerror = () => { isStartingRef.current = false; };
       isStartingRef.current = true;
       recognition.start();
@@ -96,11 +82,8 @@ export default function NexusSOAP() {
 
   const toggleRecording = async () => {
     if (isRecording) {
-      setIsRecording(false);
-      isRecordingRef.current = false;
-      recognitionRef.current?.stop();
-      setIsProcessing(true);
-      setActiveAgent("Scribe");
+      setIsRecording(false); isRecordingRef.current = false; recognitionRef.current?.stop();
+      setIsProcessing(true); setActiveAgent("Scribe");
       const transcriptText = transcriptRef.current.map(l => `${l.role}: ${l.text}`).join("\n");
       try {
         const response = await fetch("/api/scribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transcript: transcriptText }) });
@@ -110,11 +93,7 @@ export default function NexusSOAP() {
         setTimeout(() => { setIsProcessing(false); setActiveAgent("Done"); }, 500);
       } catch (err) { setIsProcessing(false); }
     } else {
-      setIsRecording(true);
-      isRecordingRef.current = true;
-      transcriptRef.current = [];
-      setLiveTranscript([]);
-      setAiResult(null);
+      setIsRecording(true); isRecordingRef.current = true; transcriptRef.current = []; setLiveTranscript([]); setAiResult(null);
       const updateVolume = async () => {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -132,8 +111,7 @@ export default function NexusSOAP() {
           checkVolume();
         } catch (err) {}
       };
-      updateVolume();
-      startRecognition();
+      updateVolume(); startRecognition();
     }
   };
 
@@ -160,7 +138,7 @@ export default function NexusSOAP() {
       doc.setTextColor(16, 185, 129); doc.setFont("helvetica", "bold"); doc.setFontSize(11); doc.text(s.t, 26, yPos);
       yPos += 12; doc.setTextColor(80, 80, 80); doc.setFont("helvetica", "normal"); doc.setFontSize(10);
       if (s.d.length === 0) { doc.text("• No clinical data synthesized.", 26, yPos); yPos += 8; } 
-      else { s.d.forEach((item: any) => { const lines = doc.splitTextToSize(`• ${item.text}`, pageWidth - 50); doc.text(lines, 26, yPos); yPos += (lines.length * 6) + 4; if (yPos > 260) { doc.addPage(); yPos = 30; } }); }
+      else { s.d.forEach((item: any) => { const lines = doc.splitTextToSize(`• ${item.text}`, pageWidth - 50); doc.text(lines, 26, yPos); yPos += (lines.length * 6) + 4; if (yPos > 270) { doc.addPage(); yPos = 30; } }); }
       yPos += 8;
     });
     doc.setFontSize(7); doc.setTextColor(200, 200, 200); doc.text("CONFIDENTIAL CLINICAL RECORD | GENERATED VIA NEXUS-SOAP AI", pageWidth / 2, pageHeight - 15, { align: "center" });
@@ -211,7 +189,7 @@ export default function NexusSOAP() {
         <div className="col-span-12 lg:col-span-4 h-[calc(100vh-200px)]">
           <div className="glass rounded-[2rem] border-white/5 flex flex-col h-full overflow-hidden">
             <div className="p-6 border-b border-white/5 flex items-center gap-3"><ShieldCheck className="w-4 h-4 text-emerald-400" /><span className="text-[10px] font-black tracking-widest uppercase">Diarized Stream</span></div>
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 scroll-smooth">
+            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4 scroll-smooth">
               {liveTranscript.map((line) => (
                 <div key={line.id} className={`p-4 rounded-2xl border ${line.role === 'Doctor' ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/5 border-white/10'}`}>
                   <div className="flex items-center justify-between mb-2"><span className={`text-[9px] font-black tracking-widest uppercase ${line.role === 'Doctor' ? 'text-emerald-400' : 'text-amber-500'}`}>{line.role}</span><span className="text-[8px] opacity-30">{line.timestamp}</span></div>
