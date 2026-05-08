@@ -21,14 +21,19 @@ export default function NexusSOAP() {
   const recognitionRef = useRef<any>(null);
   const isStartingRef = useRef(false);
   const transcriptRef = useRef<any[]>([]);
-  const transcriptEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // ISOLATED CONTAINER SCROLL (NO PAGE JUMP)
   const scrollToBottom = () => {
     const container = scrollContainerRef.current;
     if (container) {
       const isFull = container.scrollHeight > container.clientHeight;
-      if (isFull) transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      if (isFull) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: "smooth"
+        });
+      }
     }
   };
 
@@ -53,14 +58,30 @@ export default function NexusSOAP() {
           if (event.results[i].isFinal) {
             const text = event.results[i][0].transcript;
             const lowerText = text.toLowerCase();
-            const patientKeywords = ["my name is", "mera naam", "maaza naav", "naam hai", "i feel", "pain in my", "i am having", "mala", "mujhe"];
-            const doctorActionKeywords = ["prescribing", "take this", "medicine", "dawa", "goli", "injection", "treatment", "follow up", "examine", "check", "bp is", "temperature is", "report", "test", "diagnosis", "rest", "hydration", "theek hai", "okay", "let me see", "open your mouth", "breathe"];
-            const isPatientSignal = patientKeywords.some(k => lowerText.includes(k));
-            const isDoctorSignal = doctorActionKeywords.some(k => lowerText.includes(k)) || CLINICAL_DICTIONARY.MEDICINES.ANTIBIOTICS.some(m => lowerText.includes(m.toLowerCase())) || CLINICAL_DICTIONARY.MEDICINES.PAINKILLERS.some(m => lowerText.includes(m.toLowerCase()));
+            
+            // IMPROVED SEMANTIC DIARIZATION
+            const patientSignals = ["i have", "i feel", "mera naam", "mujhe", "problem", "dard", "my name is", "mera", "mala"];
+            
+            // Ignore "Doctor" if it's a question or address (Patient speaking)
+            const isAddressToDoctor = lowerText.startsWith("doctor") || lowerText.includes("doctor what") || lowerText.includes("doctor please");
+            
+            const doctorSignals = [
+              "prescribing", "take", "medicine", "dawa", "goli", "treatment", "follow up",
+              "examine", "check", "bp is", "temperature is", "report", "diagnosis", "rest", "hydration",
+              "theek hai", "let me", "breathe", "driving a" // Added 'driving a' to catch STT errors for 'prescribing'
+            ];
+
+            const hasPatientSignal = patientSignals.some(k => lowerText.includes(k));
+            const hasDoctorSignal = doctorSignals.some(k => lowerText.includes(k)) && !isAddressToDoctor;
+
             let role: 'Doctor' | 'Patient' = 'Patient';
-            if (isDoctorSignal && !isPatientSignal) role = 'Doctor';
-            else if (isPatientSignal) role = 'Patient';
-            else role = (transcriptRef.current.length > 0 && transcriptRef.current[transcriptRef.current.length - 1].role === 'Doctor') ? 'Patient' : 'Doctor';
+            if (hasDoctorSignal) role = 'Doctor';
+            else if (hasPatientSignal) role = 'Patient';
+            else {
+              // Continuity check
+              role = (transcriptRef.current.length > 0 && transcriptRef.current[transcriptRef.current.length-1].role === 'Doctor' && !isAddressToDoctor) ? 'Patient' : 'Doctor';
+            }
+            
             const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
             setLiveTranscript(prev => [...prev, newLine]);
             transcriptRef.current.push(newLine);
@@ -125,15 +146,7 @@ export default function NexusSOAP() {
     doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - 85, 34);
     doc.text(`EMR STATUS: ENCRYPTED (AES-256)`, pageWidth - 85, 40);
     let yPos = 80;
-    
-    // CLEANED PDF TITLES
-    const sections = [
-      { t: "SUBJECTIVE (HISTORY)", d: aiResult.soap.subjective },
-      { t: "OBJECTIVE (FINDINGS)", d: aiResult.soap.objective },
-      { t: "ASSESSMENT (SUMMARY)", d: aiResult.soap.assessment },
-      { t: "PLAN (TREATMENT)", d: aiResult.soap.plan }
-    ];
-
+    const sections = [{ t: "SUBJECTIVE (HISTORY)", d: aiResult.soap.subjective }, { t: "OBJECTIVE (FINDINGS)", d: aiResult.soap.objective }, { t: "ASSESSMENT (SUMMARY)", d: aiResult.soap.assessment }, { t: "PLAN (TREATMENT)", d: aiResult.soap.plan }];
     sections.forEach(s => {
       doc.setFillColor(245, 245, 245); doc.rect(20, yPos - 7, pageWidth - 40, 10, 'F');
       doc.setFillColor(16, 185, 129); doc.rect(20, yPos - 7, 2, 10, 'F');
@@ -198,7 +211,6 @@ export default function NexusSOAP() {
                   <p className="text-xs text-white/80">{line.text}</p>
                 </div>
               ))}
-              <div ref={transcriptEndRef} />
             </div>
           </div>
         </div>

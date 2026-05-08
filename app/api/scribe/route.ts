@@ -11,25 +11,25 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // PURE-ENGLISH CLINICAL INTELLIGENCE PROMPT
+    // VERBATIM CLINICAL EXTRACTION PROMPT
     const prompt = `
-      ROLE: Elite Medical Scribe (English-Only Output).
+      ROLE: Precision Medical Scribe.
       TASK: Extract professional English SOAP notes.
       
-      CRITICAL RULE: 
-      - The input transcript may contain Hinglish or Marathi.
-      - The OUTPUT must be 100% PROFESSIONAL CLINICAL ENGLISH ONLY.
-      - Translate terms like "Bukhar" to "Fever", "Dard" to "Pain", "Khokla" to "Cough".
-      - Do not use any non-English words in the 'soap' object.
+      STRICT RULES:
+      1. VERBATIM MEDICINES: If a specific medicine brand (e.g., Dolo 650, Taxim-O, Pan-D) is mentioned, you MUST use that EXACT name in the 'Plan' section. Do NOT substitute it with generic names (like Paracetamol).
+      2. ROLE ACCURACY: Carefully distinguish between Doctor and Patient. If someone asks "Doctor, what is the treatment?", that is the Patient.
+      3. ENGLISH OUTPUT: Ensure the clinical notes are 100% English.
+      4. NO REPETITION: Do not repeat info across sections.
 
       STRUCTURE:
       {
         "patient_name": "UPPERCASE_NAME",
         "soap": {
-          "subjective": [{"text": "PRO_ENGLISH_NOTE", "confidence": 100}],
-          "objective": [{"text": "PRO_ENGLISH_NOTE", "confidence": 100}],
-          "assessment": [{"text": "PRO_ENGLISH_NOTE", "confidence": 100}],
-          "plan": [{"text": "PRO_ENGLISH_NOTE", "confidence": 100}]
+          "subjective": [{"text": "...", "confidence": 100}],
+          "objective": [{"text": "...", "confidence": 100}],
+          "assessment": [{"text": "...", "confidence": 100}],
+          "plan": [{"text": "...", "confidence": 100}]
         }
       }
 
@@ -55,31 +55,36 @@ export async function POST(req: Request) {
         const parsed = JSON.parse(jsonMatch[0]);
         finalResult.soap = parsed.soap;
         finalResult.patient_name = parsed.patient_name;
-        finalResult.intelligence.mode = "Gemini Pure-English v5.1";
+        finalResult.intelligence.mode = "Gemini Verbatim v5.6";
       }
     } catch (e) {
-      console.warn("AI Engine slow, using Steel-Core Fallback.");
+      console.warn("AI Engine slow, using Verbatim Heuristics.");
     }
 
-    // STEEL-CORE RECOVERY (MAPPING REGIONAL TO ENGLISH)
+    // STEEL-CORE VERBATIM FALLBACK
     const lowerTranscript = transcript.toLowerCase();
     const add = (section: string, text: string) => {
       if (!finalResult.soap[section].some((s: any) => s.text === text)) {
-        finalResult.soap[section].push({ text, confidence: 90 });
+        finalResult.soap[section].push({ text, confidence: 95 });
       }
     };
 
-    if (finalResult.soap.subjective.length === 0) {
-      // Translate Regional Symptoms to English Sentences
-      if (lowerTranscript.includes("taap") || lowerTranscript.includes("bukhar")) add("subjective", "Patient reports febrile symptoms (fever).");
-      if (lowerTranscript.includes("khansi") || lowerTranscript.includes("khokla")) add("subjective", "Persistent cough reported by patient.");
-      if (lowerTranscript.includes("dard") || lowerTranscript.includes("dukhne")) add("subjective", "Localized pain and discomfort reported.");
-      if (lowerTranscript.includes("chakkar")) add("subjective", "Patient experiencing episodes of dizziness.");
+    if (finalResult.soap.plan.length === 0) {
+      // Priority: Extract Exact Medicine from Transcript
+      const allMeds = Object.values(CLINICAL_DICTIONARY.MEDICINES).flat();
+      allMeds.forEach(med => {
+        if (lowerTranscript.includes(med.toLowerCase())) {
+          add("plan", `Prescribed ${med} as per clinical conversation.`);
+        }
+      });
+
+      if (lowerTranscript.includes("rest")) add("plan", "Complete physical rest recommended.");
+      if (lowerTranscript.includes("water") || lowerTranscript.includes("hydration")) add("plan", "Increased oral fluid intake (Hydration) advised.");
     }
 
-    if (finalResult.soap.plan.length === 0) {
-      if (lowerTranscript.includes("dolo") || lowerTranscript.includes("calpol")) add("plan", "Paracetamol therapy initiated for fever management.");
-      if (lowerTranscript.includes("pani") || lowerTranscript.includes("hydration")) add("plan", "Strict hydration protocol recommended.");
+    if (finalResult.soap.subjective.length === 0) {
+      if (lowerTranscript.includes("taap") || lowerTranscript.includes("fever")) add("subjective", "Patient reports febrile symptoms (Fever).");
+      if (lowerTranscript.includes("khansi") || lowerTranscript.includes("cough")) add("subjective", "Respiratory distress with cough reported.");
     }
 
     return NextResponse.json(finalResult);
@@ -88,7 +93,7 @@ export async function POST(req: Request) {
     console.error("ENGINE ERROR:", error);
     return NextResponse.json({ 
       patient_name: null, 
-      soap: { subjective: [{text: "Pure-English Recovery Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
+      soap: { subjective: [{text: "Verbatim Resilience Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
     });
   }
 }
