@@ -11,26 +11,21 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // BHARAT-TECHNICAL SEMANTIC PROMPT
+    // ELITE CLINICAL SANITIZER PROMPT
     const prompt = `
-      ROLE: Elite Medical Scribe & Semantic Translator.
-      TASK: Extract unique English SOAP notes from Hinglish/Indian transcript.
+      ROLE: Professional Medical Scribe.
+      TASK: Extract high-fidelity, PERFECT ENGLISH SOAP notes.
       
       TRANSCRIPT: 
       ${transcript}
 
-      CLINICAL UP-SCALING RULES:
-      1. S - SUBJECTIVE: Translate Hinglish symptoms to formal English.
-         - "Sar Dard" -> "Cephalalgia / Acute Headache"
-         - "Kamar Dard" -> "Lumbago / Acute Low Back Pain"
-         - "Pet Dard" -> "Abdominal Pain / Gastritis"
-         - "Gal Dukhne" -> "Acute Pharyngitis / Sore Throat"
-         - "Ghabrahat" -> "Clinical Anxiety / Palpitations"
-      2. O - OBJECTIVE: Vitals and symbols (102°, BP 120).
-      3. A - ASSESSMENT: Narrative clinical summary (No templates).
-      4. P - PLAN: Verbatim meds (Dolo 650, Saridon, Moov).
+      STRICT ENGLISH ENFORCEMENT:
+      - 100% Professional Medical English. ZERO Hinglish/Marathi words allowed (e.g., No "Dard", "Taap", "Khansi").
+      - "Dard/Takleef" -> "Acute Pain / Somatic Discomfort"
+      - "Taap/Bukhar" -> "Febrile Symptoms / Fever"
+      - "Khansi/Khokla" -> "Respiratory Distress / Cough"
       
-      STRUCTURE:
+      STRUCTURE (JSON ONLY):
       {
         "patient_name": "NAME",
         "soap": {
@@ -60,13 +55,13 @@ export async function POST(req: Request) {
         const parsed = JSON.parse(jsonMatch[0]);
         finalResult.soap = parsed.soap;
         finalResult.patient_name = parsed.patient_name?.toUpperCase() || null;
-        finalResult.intelligence.mode = "Gemini Semantic v6.6";
+        finalResult.intelligence.mode = "Gemini Sanitized v6.7";
       }
     } catch (e) {
-      console.warn("AI Engine slow, using Semantic Fallback.");
+      console.warn("AI Engine slow, using Sanitized Fallback.");
     }
 
-    // STEEL-CORE SEMANTIC FALLBACK (HINGLISH TO FORMAL ENGLISH)
+    // STEEL-CORE ELITE SANITIZER (NO HINGLISH LEAKS)
     const lowerTranscript = transcript.toLowerCase();
     const add = (section: string, text: string) => {
       if (!finalResult.soap[section].some((s: any) => s.text === text)) {
@@ -74,8 +69,12 @@ export async function POST(req: Request) {
       }
     };
 
-    // 1. SUBJECTIVE UP-SCALING
-    const semanticMap: any = {
+    // 1. SUBJECTIVE SANITIZATION (PERFECT ENGLISH)
+    const englishMap: any = {
+      "dard": "Patient presents with reports of localized somatic pain.",
+      "takleef": "General discomfort and somatic distress reported.",
+      "traas": "General discomfort and somatic distress reported.",
+      "dukhne": "Patient reports localized pain and discomfort.",
       "sar dard": "Patient presents with Cephalalgia (Acute Headache).",
       "kamar dard": "Patient reports Lumbago (Acute Low Back Pain).",
       "pet dard": "Abdominal distress and Gastritis symptoms reported.",
@@ -83,11 +82,15 @@ export async function POST(req: Request) {
       "ghabrahat": "Patient experiencing clinical anxiety and palpitations.",
       "kamzori": "Generalized weakness and malaise (Kamzori).",
       "bukhar": "Febrile symptoms (Fever) noted.",
-      "taap": "Febrile symptoms (Fever) noted."
+      "taap": "Febrile symptoms (Fever) noted.",
+      "fever": "Patient presents with febrile symptoms (Fever).",
+      "cough": "Patient experiencing respiratory distress (Cough).",
+      "khokla": "Patient experiencing respiratory distress (Cough).",
+      "khansi": "Patient experiencing respiratory distress (Cough)."
     };
 
-    Object.keys(semanticMap).forEach(key => {
-      if (lowerTranscript.includes(key)) add("subjective", semanticMap[key]);
+    Object.keys(englishMap).forEach(key => {
+      if (lowerTranscript.includes(key)) add("subjective", englishMap[key]);
     });
 
     // 2. IDENTITY
@@ -104,14 +107,19 @@ export async function POST(req: Request) {
     const bpMatch = transcript.match(/(?:bp|blood pressure)\s*(?:is|of)?\s*(\d+)/i) || transcript.match(/(\d+)\s*(?:bp)/i);
     if (bpMatch) add("objective", `Hemodynamic Status: BP ${bpMatch[1]} mmHg.`);
 
-    // 4. PLAN (VERBATIM MEDS)
+    // 4. ASSESSMENT
+    if (finalResult.soap.assessment.length === 0) {
+      Object.values(CLINICAL_DICTIONARY.DISEASES).flat().forEach(d => {
+        if (lowerTranscript.includes(d.toLowerCase())) add("assessment", `Clinical evidence indicative of ${d}.`);
+      });
+    }
+
+    // 5. PLAN
     Object.values(CLINICAL_DICTIONARY.MEDICINES).flat().forEach(m => {
       if (lowerTranscript.includes(m.toLowerCase())) {
         add("plan", `Initiated ${m} therapy for symptom management.`);
       }
     });
-    if (lowerTranscript.includes("rest")) add("plan", "Strict physical rest protocol initiated.");
-    if (lowerTranscript.includes("water") || lowerTranscript.includes("hydration")) add("plan", "Aggressive oral hydration advised.");
 
     return NextResponse.json(finalResult);
 
@@ -119,7 +127,7 @@ export async function POST(req: Request) {
     console.error("ENGINE ERROR:", error);
     return NextResponse.json({ 
       patient_name: null, 
-      soap: { subjective: [{text: "Semantic Resilience Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
+      soap: { subjective: [{text: "Sanitization Shield Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
     });
   }
 }
