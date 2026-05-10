@@ -11,19 +11,26 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // UNIVERSAL SYMBOL & FEVER PROMPT
+    // BHARAT-TECHNICAL SEMANTIC PROMPT
     const prompt = `
-      ROLE: Precision Medical Scribe.
-      TASK: Extract high-fidelity English SOAP notes.
+      ROLE: Elite Medical Scribe & Semantic Translator.
+      TASK: Extract unique English SOAP notes from Hinglish/Indian transcript.
       
       TRANSCRIPT: 
       ${transcript}
 
-      STRICT VITALS RULE:
-      - Extract Temperature regardless of symbols or words (e.g., "102°", "102 degree", "fever of 101").
-      - Extract BP and Oxygen.
+      CLINICAL UP-SCALING RULES:
+      1. S - SUBJECTIVE: Translate Hinglish symptoms to formal English.
+         - "Sar Dard" -> "Cephalalgia / Acute Headache"
+         - "Kamar Dard" -> "Lumbago / Acute Low Back Pain"
+         - "Pet Dard" -> "Abdominal Pain / Gastritis"
+         - "Gal Dukhne" -> "Acute Pharyngitis / Sore Throat"
+         - "Ghabrahat" -> "Clinical Anxiety / Palpitations"
+      2. O - OBJECTIVE: Vitals and symbols (102°, BP 120).
+      3. A - ASSESSMENT: Narrative clinical summary (No templates).
+      4. P - PLAN: Verbatim meds (Dolo 650, Saridon, Moov).
       
-      STRUCTURE (JSON):
+      STRUCTURE:
       {
         "patient_name": "NAME",
         "soap": {
@@ -53,13 +60,13 @@ export async function POST(req: Request) {
         const parsed = JSON.parse(jsonMatch[0]);
         finalResult.soap = parsed.soap;
         finalResult.patient_name = parsed.patient_name?.toUpperCase() || null;
-        finalResult.intelligence.mode = "Gemini Symbol-V v6.5";
+        finalResult.intelligence.mode = "Gemini Semantic v6.6";
       }
     } catch (e) {
-      console.warn("AI Engine slow, using Symbol-V Fallback.");
+      console.warn("AI Engine slow, using Semantic Fallback.");
     }
 
-    // STEEL-CORE SYMBOL & FEVER SCANNER
+    // STEEL-CORE SEMANTIC FALLBACK (HINGLISH TO FORMAL ENGLISH)
     const lowerTranscript = transcript.toLowerCase();
     const add = (section: string, text: string) => {
       if (!finalResult.soap[section].some((s: any) => s.text === text)) {
@@ -67,47 +74,44 @@ export async function POST(req: Request) {
       }
     };
 
-    // 1. IDENTITY
+    // 1. SUBJECTIVE UP-SCALING
+    const semanticMap: any = {
+      "sar dard": "Patient presents with Cephalalgia (Acute Headache).",
+      "kamar dard": "Patient reports Lumbago (Acute Low Back Pain).",
+      "pet dard": "Abdominal distress and Gastritis symptoms reported.",
+      "gal dukhne": "Symptoms indicative of Acute Pharyngitis (Sore Throat).",
+      "ghabrahat": "Patient experiencing clinical anxiety and palpitations.",
+      "kamzori": "Generalized weakness and malaise (Kamzori).",
+      "bukhar": "Febrile symptoms (Fever) noted.",
+      "taap": "Febrile symptoms (Fever) noted."
+    };
+
+    Object.keys(semanticMap).forEach(key => {
+      if (lowerTranscript.includes(key)) add("subjective", semanticMap[key]);
+    });
+
+    // 2. IDENTITY
     if (!finalResult.patient_name) {
       const nameMatch = transcript.match(/(?:my name is|mera naam|maaza naav|i am|this is|name)\s+([a-zA-Z]+)/i);
       if (nameMatch) finalResult.patient_name = nameMatch[1].toUpperCase();
     }
 
-    // 2. REFINED TEMP SCANNER (Symbols, Degree, Fever patterns)
-    // Matches: 102, 102.5, 102°, 102 degree, fever of 101
-    const tempMatch = transcript.match(/(\d+(?:\.\d+)?)\s*(?:°|degree|degrees|deg|fahrenheit|f)/i) || 
+    // 3. VITALS (OBJECTIVE)
+    const tempMatch = transcript.match(/(\d+(?:\.\d+)?)\s*(?:°|degree|degrees|deg|f)/i) || 
                       transcript.match(/(?:fever of|fever is|fever)\s*(\d+(?:\.\d+)?)/i);
-    
     if (tempMatch) add("objective", `Clinical Thermometry: ${tempMatch[1]}°F.`);
     
-    // 3. BP SCANNER
     const bpMatch = transcript.match(/(?:bp|blood pressure)\s*(?:is|of)?\s*(\d+)/i) || transcript.match(/(\d+)\s*(?:bp)/i);
     if (bpMatch) add("objective", `Hemodynamic Status: BP ${bpMatch[1]} mmHg.`);
 
-    // 4. SUBJECTIVE (SYMPTOMS)
-    CLINICAL_DICTIONARY.SYMPTOMS.forEach(s => {
-      if (lowerTranscript.includes(s.toLowerCase())) {
-        const englishMap: any = { "taap": "Fever", "bukhar": "Fever", "khokla": "Cough", "khansi": "Cough", "ashaktapana": "Weakness", "kamzori": "Weakness" };
-        const sym = englishMap[s.toLowerCase()] || s;
-        add("subjective", `Patient reports symptoms of ${sym.toLowerCase()}.`);
-      }
-    });
-
-    // 5. ASSESSMENT
-    if (finalResult.soap.assessment.length === 0) {
-      Object.values(CLINICAL_DICTIONARY.DISEASES).flat().forEach(d => {
-        if (lowerTranscript.includes(d.toLowerCase())) add("assessment", `Clinical evidence indicative of ${d}.`);
-      });
-    }
-
-    // 6. PLAN
+    // 4. PLAN (VERBATIM MEDS)
     Object.values(CLINICAL_DICTIONARY.MEDICINES).flat().forEach(m => {
-      if (lowerTranscript.includes(m.toLowerCase()) || (m === "Dolo 650" && lowerTranscript.includes("do or 650"))) {
-        add("plan", `Initiated ${m} therapy.`);
+      if (lowerTranscript.includes(m.toLowerCase())) {
+        add("plan", `Initiated ${m} therapy for symptom management.`);
       }
     });
-    if (lowerTranscript.includes("rest")) add("plan", "Strict physical rest advised.");
-    if (lowerTranscript.includes("water") || lowerTranscript.includes("hydration")) add("plan", "Aggressive oral hydration protocol.");
+    if (lowerTranscript.includes("rest")) add("plan", "Strict physical rest protocol initiated.");
+    if (lowerTranscript.includes("water") || lowerTranscript.includes("hydration")) add("plan", "Aggressive oral hydration advised.");
 
     return NextResponse.json(finalResult);
 
@@ -115,7 +119,7 @@ export async function POST(req: Request) {
     console.error("ENGINE ERROR:", error);
     return NextResponse.json({ 
       patient_name: null, 
-      soap: { subjective: [{text: "Symbol Resilience Protocol: Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
+      soap: { subjective: [{text: "Semantic Resilience Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
     });
   }
 }
