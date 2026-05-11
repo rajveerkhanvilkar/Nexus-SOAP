@@ -11,26 +11,24 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // CLINICAL PURIFIER PROMPT
+    // PURIFIER PROMPT (BP PRESERVATION)
     const prompt = `
       ROLE: Senior Medical Consultant & Elite Scribe.
-      TASK: Extract high-fidelity, PERFECT MEDICAL ENGLISH SOAP notes.
+      TASK: Extract high-fidelity MEDICAL ENGLISH SOAP notes.
       
       TRANSCRIPT: 
       ${transcript}
 
-      STRICT PURIFICATION RULES:
-      1. ZERO HINGLISH: You are FORBIDDEN from using words like "Dard", "Sar Dard", "Bukhar", "Taap", "Khansi", "Pet Dard".
-      2. CLINICAL SCALING: 
+      STRICT RULES:
+      1. BP: Always use "BP". DO NOT convert to "Hypertension".
+      2. ZERO HINGLISH: You are FORBIDDEN from using words like "Dard", "Sar Dard", "Bukhar".
+      3. CLINICAL SCALING: 
          - "Sar Dard" -> "Cephalalgia / Acute Headache"
          - "Kamar Dard" -> "Lumbago / Lower Back Pain"
-         - "BP" -> "Hypertension"
          - "Sugar" -> "Diabetes Mellitus"
          - "Dard" -> "Acute Somatic Discomfort"
-      3. ASSESSMENT: Narrative clinical justification in formal English.
-      4. PLAN: Verbatim meds (Dolo 650, Crocin) and professional instructions.
-
-      STRUCTURE (JSON ONLY):
+      
+      STRUCTURE:
       {
         "patient_name": "NAME",
         "soap": {
@@ -60,24 +58,23 @@ export async function POST(req: Request) {
         const parsed = JSON.parse(jsonMatch[0]);
         finalResult.soap = parsed.soap;
         finalResult.patient_name = parsed.patient_name?.toUpperCase() || null;
-        finalResult.intelligence.mode = "Gemini Purifier v7.1";
+        finalResult.intelligence.mode = "Gemini Purifier v7.3";
       }
     } catch (e) {
       console.warn("AI Engine slow, using Purifier Fallback.");
     }
 
-    // STEEL-CORE GLOBAL PURIFIER (POST-PROCESSING FILTER)
+    // STEEL-CORE GLOBAL PURIFIER (BP EXEMPT)
     const lowerTranscript = transcript.toLowerCase();
     const getRandomConf = () => Math.floor(Math.random() * (99 - 92 + 1)) + 92;
     
     const add = (section: string, text: string) => {
-      // Global Word Purifier
+      // Global Word Purifier (BP EXEMPTED)
       let purifiedText = text
         .replace(/sar dard/gi, "Cephalalgia (Headache)")
         .replace(/kamar dard/gi, "Lumbago (Back Pain)")
         .replace(/pet dard/gi, "Abdominal Gastritis")
         .replace(/dard/gi, "Localized Pain")
-        .replace(/\bbp\b/gi, "Hypertension")
         .replace(/sugar/gi, "Diabetes Mellitus")
         .replace(/bukhar|taap/gi, "Febrile symptoms")
         .replace(/khansi|khokla/gi, "Respiratory distress");
@@ -87,7 +84,7 @@ export async function POST(req: Request) {
       }
     };
 
-    // 1. SUBJECTIVE PURIFICATION
+    // 1. SUBJECTIVE
     const symMap: any = { "sar dard": "sar dard", "kamar dard": "kamar dard", "pet dard": "pet dard", "dard": "dard", "fever": "fever", "bukhar": "bukhar", "taap": "taap" };
     Object.keys(symMap).forEach(key => {
       if (lowerTranscript.includes(key)) add("subjective", `Patient presents with reports of ${key}.`);
@@ -97,18 +94,23 @@ export async function POST(req: Request) {
     const tempMatch = transcript.match(/(\d+(?:\.\d+)?)\s*(?:°|degree|degrees|deg|f)/i) || 
                       transcript.match(/(?:fever of|fever is|fever)\s*(\d+(?:\.\d+)?)/i);
     if (tempMatch) add("objective", `Clinical Thermometry: ${tempMatch[1]}°F.`);
+    
+    // BP Preservation in Vitals
     const bpMatch = transcript.match(/(?:bp|blood pressure)\s*(?:is|of)?\s*(\d+)/i) || transcript.match(/(\d+)\s*(?:bp)/i);
     if (bpMatch) add("objective", `Hemodynamic Status: BP ${bpMatch[1]} mmHg.`);
 
-    // 3. ASSESSMENT PURIFICATION
+    // 3. ASSESSMENT (BP PRESERVATION)
     if (finalResult.soap.assessment.length === 0) {
-      const diagMap: any = { "mirgi": "Epilepsy", "fit": "Seizure Disorder", "bp": "Hypertension", "sugar": "Diabetes Mellitus", "viral": "Viral Infection" };
+      const diagMap: any = { "mirgi": "Epilepsy", "fit": "Seizure Disorder", "sugar": "Diabetes Mellitus", "viral": "Viral Infection" };
       Object.keys(diagMap).forEach(key => {
         if (lowerTranscript.includes(key)) add("assessment", `Clinical markers suggest ${diagMap[key]}.`);
       });
+      if (lowerTranscript.includes("bp")) {
+        add("assessment", "Diagnostic evaluation indicative of abnormal BP profile.");
+      }
     }
 
-    // 4. PLAN (PHONETIC LOCK)
+    // 4. PLAN
     const meds = ["Dolo 650", "Crocin Advance", "Saridon", "Combiflam", "Pan-D"];
     meds.forEach(m => {
       if (lowerTranscript.includes(m.toLowerCase()) || (m === "Dolo 650" && lowerTranscript.includes("650"))) {
@@ -122,7 +124,7 @@ export async function POST(req: Request) {
     console.error("ENGINE ERROR:", error);
     return NextResponse.json({ 
       patient_name: null, 
-      soap: { subjective: [{text: "Purification Shield: Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
+      soap: { subjective: [{text: "BP-Preservation Shield Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
     });
   }
 }
