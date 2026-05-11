@@ -13,6 +13,7 @@ export default function NexusSOAP() {
   const isRecordingRef = useRef(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [patientName, setPatientName] = useState("");
+  const patientNameRef = useRef(""); // Permanent ref for real-time sync
   const [activeAgent, setActiveAgent] = useState<"Idle" | "Scribe" | "Auditor" | "Coder" | "Done">("Idle");
   const [liveTranscript, setLiveTranscript] = useState<{ id: string; text: string; role: 'Doctor' | 'Patient'; timestamp: string }[]>([]);
   const [volume, setVolume] = useState<number>(0);
@@ -34,7 +35,7 @@ export default function NexusSOAP() {
     if (liveTranscript.length > 0) scrollToBottom();
   }, [liveTranscript]);
 
-  // STABLE SEMANTIC DIARIZATION
+  // LIVE IDENTITY & ROLE ENGINE
   const startRecognition = () => {
     const SpeechRecognition = (window as any).webkitSpeechRecognition || (window as any).SpeechRecognition;
     if (!SpeechRecognition) return;
@@ -44,27 +45,43 @@ export default function NexusSOAP() {
     recognition.interimResults = true;
     recognition.lang = 'en-IN';
 
-    recognition.onstart = () => console.log("LEGACY ENGINE: ACTIVE");
-
     recognition.onresult = (event: any) => {
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
           const text = event.results[i][0].transcript;
           const lowerText = text.toLowerCase();
           
-          // SEMANTIC ROLE INFERENCE
-          const patientSignals = ["mujhe", "dard", "bukhar", "taap", "khansi", "khokla", "problem", "takleef", "i have", "i feel", "pain", "fever", "mera naam", "maaza naav"];
-          const isAddressToDoctor = lowerText.startsWith("doctor") || lowerText.includes("doctor what") || lowerText.includes("doctor please");
+          // 1. LIVE IDENTITY DETECTION (PERMANENT FIX)
+          if (!patientNameRef.current || patientNameRef.current === "") {
+            const namePatterns = [
+              /(?:my name is|mera naam|maaza naav|mazhe naav|i am|this is|name)\s+([a-zA-Z]+)/i,
+              /naav\s+([a-zA-Z]+)\s+aahe/i,
+              /naam\s+([a-zA-Z]+)\s+hai/i
+            ];
+            for (const pattern of namePatterns) {
+              const match = text.match(pattern);
+              if (match && match[1]) {
+                const detectedName = match[1].trim().toUpperCase();
+                if (!["DOCTOR", "PATIENT", "THE", "MY"].includes(detectedName)) {
+                  setPatientName(detectedName);
+                  patientNameRef.current = detectedName;
+                  break;
+                }
+              }
+            }
+          }
           
-          const doctorSignals = ["prescribing", "take", "medicine", "dawa", "goli", "treatment", "diagnosis", "bp is", "temperature is", "report", "rest advised", "hydration", "theek hai", "let me", "breathe", "examination"];
-          
+          // 2. ROLE INFERENCE
+          const patientSignals = ["mujhe", "dard", "bukhar", "taap", "khansi", "khokla", "problem", "takleef", "i have", "i feel", "pain", "fever"];
+          const isAddressToDoctor = lowerText.startsWith("doctor") || lowerText.includes("doctor what");
+          const doctorSignals = ["prescribing", "take", "medicine", "diagnosis", "bp is", "temperature is", "rest advised", "hydration", "theek hai"];
           const hasPatientSignal = patientSignals.some(k => lowerText.includes(k));
           const hasDoctorSignal = doctorSignals.some(k => lowerText.includes(k)) && !isAddressToDoctor;
 
           let role: 'Doctor' | 'Patient' = 'Patient';
           if (hasDoctorSignal) role = 'Doctor';
           else if (hasPatientSignal) role = 'Patient';
-          else role = (transcriptRef.current.length > 0 && transcriptRef.current[transcriptRef.current.length-1].role === 'Doctor' && !isAddressToDoctor) ? 'Patient' : 'Doctor';
+          else role = (transcriptRef.current.length > 0 && transcriptRef.current[transcriptRef.current.length-1].role === 'Doctor') ? 'Patient' : 'Doctor';
           
           const newLine = { id: Date.now().toString() + i, text, role, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
           setLiveTranscript(prev => [...prev, newLine]);
@@ -73,12 +90,7 @@ export default function NexusSOAP() {
       }
     };
 
-    recognition.onend = () => {
-      if (isRecordingRef.current) {
-        try { recognition.start(); } catch(e) {}
-      }
-    };
-
+    recognition.onend = () => { if (isRecordingRef.current) try { recognition.start(); } catch(e) {} };
     recognitionRef.current = recognition;
     recognition.start();
   };
@@ -88,14 +100,13 @@ export default function NexusSOAP() {
       setIsRecording(false);
       isRecordingRef.current = false;
       if (recognitionRef.current) recognitionRef.current.abort();
-      
       setIsProcessing(true);
       setActiveAgent("Scribe");
       const transcriptText = transcriptRef.current.map(l => `${l.role}: ${l.text}`).join("\n");
       try {
         const response = await fetch("/api/scribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transcript: transcriptText }) });
         const data = await response.json();
-        if (data.patient_name && !patientName) setPatientName(data.patient_name.toUpperCase());
+        if (data.patient_name) { setPatientName(data.patient_name.toUpperCase()); patientNameRef.current = data.patient_name.toUpperCase(); }
         setAiResult(data);
         setTimeout(() => { setIsProcessing(false); setActiveAgent("Done"); }, 500);
       } catch (err) { setIsProcessing(false); }
@@ -105,7 +116,9 @@ export default function NexusSOAP() {
       transcriptRef.current = [];
       setLiveTranscript([]);
       setAiResult(null);
-
+      // Don't reset manual name if user typed it, otherwise start fresh
+      if (patientNameRef.current === "") setPatientName(""); 
+      
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       if (audioContext.state === 'suspended') await audioContext.resume();
@@ -120,7 +133,6 @@ export default function NexusSOAP() {
         requestAnimationFrame(checkVolume);
       };
       checkVolume();
-      
       startRecognition();
     }
   };
@@ -133,10 +145,12 @@ export default function NexusSOAP() {
     doc.setFillColor(16, 185, 129); doc.rect(0, 0, pageWidth, 55, 'F');
     doc.setFillColor(40, 40, 40); doc.rect(0, 55, pageWidth, 2, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(32); doc.text("NEXUS SOAP", 20, 30);
-    doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text("STABLE CLINICAL AMBIENT INTELLIGENCE OS", 20, 42);
+    doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text("PREMIUM AMBIENT CLINICAL INTELLIGENCE OS", 20, 42);
     const uniqueID = `NX-${Date.now().toString().slice(-4)}-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
     doc.setFontSize(8);
-    doc.text(`PATIENT NAME: ${patientName || "NOT SPECIFIED"}`, pageWidth - 85, 22);
+    // FORCE SYNC CURRENT NAME TO PDF
+    const finalName = patientName || patientNameRef.current || "NOT SPECIFIED";
+    doc.text(`PATIENT NAME: ${finalName}`, pageWidth - 85, 22);
     doc.text(`CONSULTATION ID: #${uniqueID}`, pageWidth - 85, 28);
     doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - 85, 34);
     doc.text(`EMR STATUS: AES-256 ENCRYPTED`, pageWidth - 85, 40);
@@ -164,7 +178,7 @@ export default function NexusSOAP() {
       const transcriptLines = doc.splitTextToSize(line.text, pageWidth - 50); doc.text(transcriptLines, 20, auditY + 5);
       auditY += (transcriptLines.length * 4) + 12;
     });
-    doc.save(`NEXUS_REPORT_${patientName || 'Clinical'}.pdf`);
+    doc.save(`NEXUS_REPORT_${finalName.replace(/\s+/g, '_')}.pdf`);
   };
 
   return (
@@ -172,7 +186,7 @@ export default function NexusSOAP() {
       <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/5 py-4 px-8 flex items-center justify-between">
         <div className="flex items-center gap-3"><Activity className="w-5 h-5 text-emerald-400" /><h1 className="text-sm font-black tracking-tighter text-white uppercase">Nexus<span className="text-emerald-400">SOAP</span></h1></div>
         <div className="flex items-center gap-4">
-          <input type="text" placeholder="ENTER PATIENT NAME" value={patientName} onChange={(e) => setPatientName(e.target.value.toUpperCase())} className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-[10px] font-black tracking-widest text-emerald-400 focus:outline-none w-32 md:w-64" />
+          <input type="text" placeholder="PATIENT IDENTITY" value={patientName} onChange={(e) => { const n = e.target.value.toUpperCase(); setPatientName(n); patientNameRef.current = n; }} className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl text-[10px] font-black tracking-widest text-emerald-400 focus:outline-none w-32 md:w-64 uppercase" />
           <button onClick={exportPDF} className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all group shadow-2xl shadow-emerald-500/10"><Download size={18} className="text-white/40 group-hover:text-emerald-400" /></button>
           <button onClick={toggleRecording} className={`px-4 md:px-6 py-2.5 rounded-xl font-black text-[10px] tracking-widest uppercase transition-all shadow-2xl ${isRecording ? 'bg-red-500/20 text-red-500 border border-red-500/30 shadow-red-500/10' : 'bg-emerald-500 text-black hover:bg-emerald-400 shadow-emerald-500/20'}`}>{isRecording ? 'Stop' : 'Start Ingestion'}</button>
         </div>
