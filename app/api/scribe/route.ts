@@ -11,7 +11,7 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // PURIFIER PROMPT (BP PRESERVATION)
+    // HYPER-AGGRESSIVE TREATMENT PROMPT
     const prompt = `
       ROLE: Senior Medical Consultant & Elite Scribe.
       TASK: Extract high-fidelity MEDICAL ENGLISH SOAP notes.
@@ -19,15 +19,12 @@ export async function POST(req: Request) {
       TRANSCRIPT: 
       ${transcript}
 
-      STRICT RULES:
-      1. BP: Always use "BP". DO NOT convert to "Hypertension".
-      2. ZERO HINGLISH: You are FORBIDDEN from using words like "Dard", "Sar Dard", "Bukhar".
-      3. CLINICAL SCALING: 
-         - "Sar Dard" -> "Cephalalgia / Acute Headache"
-         - "Kamar Dard" -> "Lumbago / Lower Back Pain"
-         - "Sugar" -> "Diabetes Mellitus"
-         - "Dard" -> "Acute Somatic Discomfort"
-      
+      STRICT PLAN RULES:
+      1. MEDS: Extract ALL medications (Paracetamol, Dolo, Crocin, etc.).
+      2. ADVICE: Extract all advice like "rest", "hydration", "water", "fluids".
+      3. BP: Always use "BP".
+      4. ZERO HINGLISH: No local words in output.
+
       STRUCTURE:
       {
         "patient_name": "NAME",
@@ -58,18 +55,17 @@ export async function POST(req: Request) {
         const parsed = JSON.parse(jsonMatch[0]);
         finalResult.soap = parsed.soap;
         finalResult.patient_name = parsed.patient_name?.toUpperCase() || null;
-        finalResult.intelligence.mode = "Gemini Purifier v7.3";
+        finalResult.intelligence.mode = "Gemini Aggressive v7.4";
       }
     } catch (e) {
-      console.warn("AI Engine slow, using Purifier Fallback.");
+      console.warn("AI Engine slow, using Aggressive Fallback.");
     }
 
-    // STEEL-CORE GLOBAL PURIFIER (BP EXEMPT)
+    // STEEL-CORE HYPER-AGGRESSIVE FALLBACK
     const lowerTranscript = transcript.toLowerCase();
     const getRandomConf = () => Math.floor(Math.random() * (99 - 92 + 1)) + 92;
     
     const add = (section: string, text: string) => {
-      // Global Word Purifier (BP EXEMPTED)
       let purifiedText = text
         .replace(/sar dard/gi, "Cephalalgia (Headache)")
         .replace(/kamar dard/gi, "Lumbago (Back Pain)")
@@ -90,33 +86,35 @@ export async function POST(req: Request) {
       if (lowerTranscript.includes(key)) add("subjective", `Patient presents with reports of ${key}.`);
     });
 
-    // 2. VITALS (OBJECTIVE)
+    // 2. OBJECTIVE (VITALS)
     const tempMatch = transcript.match(/(\d+(?:\.\d+)?)\s*(?:°|degree|degrees|deg|f)/i) || 
                       transcript.match(/(?:fever of|fever is|fever)\s*(\d+(?:\.\d+)?)/i);
     if (tempMatch) add("objective", `Clinical Thermometry: ${tempMatch[1]}°F.`);
-    
-    // BP Preservation in Vitals
     const bpMatch = transcript.match(/(?:bp|blood pressure)\s*(?:is|of)?\s*(\d+)/i) || transcript.match(/(\d+)\s*(?:bp)/i);
     if (bpMatch) add("objective", `Hemodynamic Status: BP ${bpMatch[1]} mmHg.`);
 
-    // 3. ASSESSMENT (BP PRESERVATION)
+    // 3. ASSESSMENT
     if (finalResult.soap.assessment.length === 0) {
       const diagMap: any = { "mirgi": "Epilepsy", "fit": "Seizure Disorder", "sugar": "Diabetes Mellitus", "viral": "Viral Infection" };
       Object.keys(diagMap).forEach(key => {
         if (lowerTranscript.includes(key)) add("assessment", `Clinical markers suggest ${diagMap[key]}.`);
       });
-      if (lowerTranscript.includes("bp")) {
-        add("assessment", "Diagnostic evaluation indicative of abnormal BP profile.");
-      }
+      if (lowerTranscript.includes("bp")) add("assessment", "Diagnostic evaluation indicative of abnormal BP profile.");
     }
 
-    // 4. PLAN
-    const meds = ["Dolo 650", "Crocin Advance", "Saridon", "Combiflam", "Pan-D"];
+    // 4. PLAN (HYPER-AGGRESSIVE)
+    const meds = ["Paracetamol", "Dolo 650", "Crocin Advance", "Saridon", "Combiflam", "Pan-D", "Aspirin", "Wikoryl"];
     meds.forEach(m => {
       if (lowerTranscript.includes(m.toLowerCase()) || (m === "Dolo 650" && lowerTranscript.includes("650"))) {
         add("plan", `Initiated treatment with ${m} as prescribed.`);
       }
     });
+    
+    // Advice Extraction
+    if (lowerTranscript.includes("rest")) add("plan", "Strict physical rest protocol initiated for recovery.");
+    if (lowerTranscript.includes("hydrated") || lowerTranscript.includes("hydration") || lowerTranscript.includes("water") || lowerTranscript.includes("fluids")) {
+      add("plan", "Aggressive oral hydration and fluid intake advised.");
+    }
 
     return NextResponse.json(finalResult);
 
@@ -124,7 +122,7 @@ export async function POST(req: Request) {
     console.error("ENGINE ERROR:", error);
     return NextResponse.json({ 
       patient_name: null, 
-      soap: { subjective: [{text: "BP-Preservation Shield Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
+      soap: { subjective: [{text: "Treatment Shield Active.", confidence: 50}], objective: [], assessment: [], plan: [] }
     });
   }
 }
