@@ -158,6 +158,21 @@ export default function NexusSOAP() {
       else { s.d.forEach((item: any) => { const lines = doc.splitTextToSize(`• ${item.text}`, pageWidth - 50); doc.text(lines, 26, yPos); yPos += (lines.length * 6) + 4; if (yPos > 270) { doc.addPage(); yPos = 30; } }); }
       yPos += 8;
     });
+
+    // --- MANDATORY APPENDIX A: DIARIZED AUDIT TRAIL (PAGE 2) ---
+    doc.addPage(); 
+    doc.setFillColor(40, 40, 40); doc.rect(0, 0, pageWidth, 45, 'F');
+    doc.setFillColor(16, 185, 129); doc.rect(0, 45, pageWidth, 2, 'F'); 
+    doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.text("APPENDIX A: DIARIZED AUDIT TRAIL", 20, 25);
+    doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.text("UNEDITED CONVERSATIONAL LOGS | BIOMETRIC VERIFICATION", 20, 35);
+    let auditY = 65; doc.setFontSize(8);
+    liveTranscript.forEach(line => {
+      if (auditY > pageHeight - 25) { doc.addPage(); auditY = 30; }
+      doc.setTextColor(150, 150, 150); doc.setFont("helvetica", "bold"); doc.text(`${line.role.toUpperCase()} | ${line.timestamp}:`, 20, auditY);
+      doc.setTextColor(100, 100, 100); doc.setFont("helvetica", "normal");
+      const transcriptLines = doc.splitTextToSize(line.text, pageWidth - 50); doc.text(transcriptLines, 20, auditY + 5);
+      auditY += (transcriptLines.length * 4) + 12;
+    });
     doc.save(`NEXUS_VERIFIED_${finalName.replace(/\s+/g, '_')}.pdf`);
   };
 
