@@ -33,23 +33,32 @@ export default function NexusSOAP() {
     if (liveTranscript.length > 0) scrollToBottom();
   }, [liveTranscript]);
 
-  // --- EDITORIAL HANDLERS ---
+  // --- EDITORIAL HANDLERS (NULL-SAFE) ---
   const handleEditItem = (section: string, index: number, newText: string) => {
+    if (!aiResult) return;
     const updated = { ...aiResult };
-    updated.soap[section][index].text = newText;
-    setAiResult(updated);
+    if (updated.soap && updated.soap[section]) {
+      updated.soap[section][index].text = newText;
+      setAiResult(updated);
+    }
   };
 
   const handleAddItem = (section: string) => {
+    if (!aiResult) return;
     const updated = { ...aiResult };
+    if (!updated.soap) updated.soap = { subjective: [], objective: [], assessment: [], plan: [] };
+    if (!updated.soap[section]) updated.soap[section] = [];
     updated.soap[section].push({ text: "New Clinical Entry...", confidence: 100 });
     setAiResult(updated);
   };
 
   const handleRemoveItem = (section: string, index: number) => {
+    if (!aiResult) return;
     const updated = { ...aiResult };
-    updated.soap[section].splice(index, 1);
-    setAiResult(updated);
+    if (updated.soap && updated.soap[section]) {
+      updated.soap[section].splice(index, 1);
+      setAiResult(updated);
+    }
   };
 
   const startRecognition = () => {
@@ -105,7 +114,7 @@ export default function NexusSOAP() {
       try {
         const response = await fetch("/api/scribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transcript: transcriptText }) });
         const data = await response.json();
-        if (data.patient_name) { setPatientName(data.patient_name.toUpperCase()); patientNameRef.current = data.patient_name.toUpperCase(); }
+        if (data && data.patient_name) { setPatientName(data.patient_name.toUpperCase()); patientNameRef.current = data.patient_name.toUpperCase(); }
         setAiResult(data);
         setTimeout(() => { setIsProcessing(false); setActiveAgent("Done"); }, 500);
       } catch (err) { setIsProcessing(false); }
@@ -130,7 +139,7 @@ export default function NexusSOAP() {
   };
 
   const exportPDF = () => {
-    if (!aiResult) return;
+    if (!aiResult || !aiResult.soap) return;
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -138,16 +147,16 @@ export default function NexusSOAP() {
     doc.setFillColor(40, 40, 40); doc.rect(0, 55, pageWidth, 2, 'F');
     doc.setTextColor(255, 255, 255); doc.setFont("helvetica", "bold"); doc.setFontSize(32); doc.text("NEXUS SOAP", 20, 30);
     doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.text("EDITORIAL VERIFIED CLINICAL INTELLIGENCE OS", 20, 42);
-    const finalName = patientName || patientNameRef.current || "NOT SPECIFIED";
+    const finalName = patientName || patientNameRef.current || "NOT_SPECIFIED";
     doc.setFontSize(8);
     doc.text(`PATIENT NAME: ${finalName}`, pageWidth - 85, 22);
     doc.text(`DATE: ${new Date().toLocaleDateString()}`, pageWidth - 85, 34);
     let yPos = 80;
     const sections = [
-      { id: "subjective", t: "SUBJECTIVE (HISTORY)", d: aiResult.soap.subjective },
-      { id: "objective", t: "OBJECTIVE (FINDINGS)", d: aiResult.soap.objective },
-      { id: "assessment", t: "ASSESSMENT (SUMMARY)", d: aiResult.soap.assessment },
-      { id: "plan", t: "PLAN (TREATMENT)", d: aiResult.soap.plan }
+      { id: "subjective", t: "SUBJECTIVE (HISTORY)", d: aiResult.soap.subjective || [] },
+      { id: "objective", t: "OBJECTIVE (FINDINGS)", d: aiResult.soap.objective || [] },
+      { id: "assessment", t: "ASSESSMENT (SUMMARY)", d: aiResult.soap.assessment || [] },
+      { id: "plan", t: "PLAN (TREATMENT)", d: aiResult.soap.plan || [] }
     ];
     sections.forEach(s => {
       doc.setFillColor(245, 245, 245); doc.rect(20, yPos - 7, pageWidth - 40, 10, 'F');
@@ -159,7 +168,7 @@ export default function NexusSOAP() {
       yPos += 8;
     });
 
-    // --- MANDATORY APPENDIX A: DIARIZED AUDIT TRAIL (PAGE 2) ---
+    // --- MANDATORY APPENDIX A: DIARIZED AUDIT TRAIL ---
     doc.addPage(); 
     doc.setFillColor(40, 40, 40); doc.rect(0, 0, pageWidth, 45, 'F');
     doc.setFillColor(16, 185, 129); doc.rect(0, 45, pageWidth, 2, 'F'); 
@@ -205,11 +214,11 @@ export default function NexusSOAP() {
                   {isProcessing ? (
                     <div className="flex items-center gap-3 animate-pulse"><Activity className="w-4 h-4 text-emerald-400" /><span className="text-xs text-white/40 font-black tracking-widest uppercase">Clinical Synthesis...</span></div>
                   ) : (
-                    aiResult?.soap[section].map((item: any, idx: number) => (
+                    aiResult?.soap?.[section]?.map((item: any, idx: number) => (
                       <div key={idx} className="flex items-start gap-3 group/item">
                         <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-emerald-500 group-hover:scale-125 transition-transform" />
                         <div className="flex-1">
-                          <textarea value={item.text} onChange={(e) => handleEditItem(section, idx, e.target.value)} className="w-full bg-transparent text-[13px] leading-relaxed text-white/80 focus:text-white focus:outline-none resize-none min-h-[40px] border-b border-transparent focus:border-emerald-500/30 transition-all font-medium py-1" rows={Math.ceil(item.text.length / 40)} />
+                          <textarea value={item.text} onChange={(e) => handleEditItem(section, idx, e.target.value)} className="w-full bg-transparent text-[13px] leading-relaxed text-white/80 focus:text-white focus:outline-none resize-none min-h-[40px] border-b border-transparent focus:border-emerald-500/30 transition-all font-medium py-1" rows={Math.ceil((item?.text?.length || 40) / 40)} />
                           <div className="flex items-center justify-between mt-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
                             <span className="text-[8px] font-black text-emerald-500/40 uppercase tracking-tighter">Verified Confidence: {item.confidence}%</span>
                             <button onClick={() => handleRemoveItem(section, idx)} className="text-red-500/40 hover:text-red-500 transition-colors"><Trash2 size={10} /></button>
