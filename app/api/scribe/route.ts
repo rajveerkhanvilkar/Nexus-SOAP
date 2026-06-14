@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     try {
       const result = await Promise.race([
         model.generateContent(prompt),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 8000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 25000))
       ]) as any;
 
       const responseText = await result.response.text();
@@ -59,8 +59,9 @@ export async function POST(req: Request) {
         finalResult.patient_name = parsed.patient_name?.toUpperCase() || null;
         finalResult.intelligence.mode = "Gemini Aggressive v7.4";
       }
-    } catch (e) {
-      console.warn("AI Engine slow, using Aggressive Fallback.");
+    } catch (e: any) {
+      console.warn("AI Engine failed or timed out. Error:", e.message);
+      console.warn("Using Regex Fallback System.");
     }
 
     // STEEL-CORE HYPER-AGGRESSIVE FALLBACK
